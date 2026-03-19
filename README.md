@@ -14,31 +14,30 @@ Generates tailored resumes, cover letters, cold emails, interview prep, and port
 Job URL / Description
         │
         ▼
-┌───────────────────────────────────────────────────────┐
-│                 N8N Workflow (10 nodes)                │
-│                                                       │
-│  [Trigger] → [Set Details] → [Parse Job Info]         │
-│       │                                               │
-│       ▼                                               │
-│  [Tier 1] Resume + Cover Letter + Metadata            │
-│       │  ↳ Ollama: llama3.2  ↳ files: 3 .md          │
-│       ▼                                               │
-│  [Tier 2] Cold Emails + Company Research              │
-│       │  ↳ Ollama: llama3.2  ↳ files: 3 .md          │
-│       ▼                                               │
-│  [Tier 3] Interview Prep + Salary Guide               │
-│       │  ↳ Ollama: llama3.2  ↳ files: 1 .md          │
-│       ▼                                               │
-│  [Tier 4] Portfolio Matching + GitHub Strategy        │
-│       │  ↳ Ollama: llama3.2  ↳ files: 1 .md          │
-│       ▼                                               │
-│  [Tier 5] SQLite DB + Tracking + Analytics            │
-│       │  ↳ sqlite3  ↳ files: 2 .md                   │
-│       ▼                                               │
-│  [Git Commit] → job-search-data (PRIVATE)             │
-│       ▼                                               │
-│  [Email Notification] → Gmail                         │
-└───────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│              N8N Workflow (13 nodes — PARALLEL)                │
+│                                                                │
+│  [Trigger] → [Set Details] → [Parse Job Info]                  │
+│                                    │                           │
+│              ┌─────────────────────┼─────────────────────┐     │
+│              ▼         ▼           ▼          ▼          ▼     │
+│          [Tier 1]  [Tier 2]   [Tier 3]   [Tier 4]   [Tier 5]  │
+│          Resume    Cold       Interview  Portfolio  Database    │
+│          + Cover   Outreach   Prep       (GitHub    + Tracking │
+│          Letter    + Research + Salary   API real)             │
+│              │         │           │          │          │     │
+│              └─────────┴───────────┴──────────┴──────────┘     │
+│                                    │                           │
+│                              [Merge Node]                      │
+│                                    │                           │
+│                        [ATS Keyword Optimization]              │
+│                                    │                           │
+│                        [Git Commit → job-search-data]          │
+│                                    │                           │
+│                        [Wait for Email Approval]  ← PAUSES     │
+│                                    │              (manual OK)  │
+│                        [Send Email Notification]               │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ### Vault Structure (private repo)
@@ -66,13 +65,49 @@ Job URL / Description
 
 | File | Description |
 |---|---|
-| `workflow-all-tiers.json` | Complete N8N workflow — import directly into N8N UI |
+| `workflow-all-tiers.json` | Complete N8N workflow (13 nodes, parallel execution) — import directly into N8N UI |
+| `n8n-workflows/workflow-email-listener.json` | Email tracking workflow — monitors inbox for interview/offer/rejection emails |
+| `n8n-workflows/workflow-followup-scheduler.json` | Daily follow-up reminder workflow — checks SQLite for due follow-ups |
+| `prompts/tier-1-resume.md` | Senior Architect resume generation prompt |
+| `prompts/tier-1-cover-letter.md` | Cover letter generation prompt |
+| `prompts/tier-2-cold-email.md` | Cold email and company research prompts |
+| `prompts/tier-3-interview-questions.md` | Interview prep, salary guide, and talking points prompts |
+| `prompts/tier-4-portfolio.md` | Portfolio matching prompt (uses real GitHub API) |
+| `prompts/follow-up-email-template.md` | Follow-up and thank-you email templates |
+| `prompts/rejection-response-template.md` | Gracious rejection response templates |
+| `prompts/ats-optimization.md` | ATS keyword optimization reference and prompts |
 | `init_database.sql` | SQLite schema initialization script |
 | `PROMPTS.md` | All Ollama prompt templates with variable reference |
 | `database_schema.md` | Database table documentation and query examples |
 | `docker-compose.yml` | Local development Docker Compose |
 | `Dockerfile` | N8N Docker image (root-level for Render compatibility) |
 | `config/render.yaml` | Render.com deployment configuration |
+
+---
+
+## What's New — Workflow Updates
+
+### 1. Parallel Tier Execution
+All 5 tiers now run **simultaneously** instead of sequentially. The `Merge - All Tiers` node waits for all 5 tiers to complete before proceeding. This reduces total execution time significantly.
+
+### 2. Manual Email Approval
+A `Wait for Email Approval` node pauses the workflow **before** sending any email. You must manually resume it in the N8N UI (click "Resume" on the waiting execution). **No email is ever sent without your explicit approval.**
+
+### 3. ATS Keyword Optimization
+A new `ATS Keyword Optimization` node automatically:
+- Extracts technical keywords from the job description
+- Compares them against your skills and generated resume
+- Calculates an ATS match score (0–100%)
+- Identifies missing keywords
+
+### 4. Real GitHub API in Tier 4
+Tier 4 now fetches **real repository data** from `https://api.github.com/users/odeliyach/repos` and uses that data as context for Ollama's project selection analysis.
+
+### 5. Senior Architect Resume Prompt
+Tier 1 uses an enhanced Senior Architect-specific resume prompt with structured sections: Executive Summary, Technical Skills (organized by domain), STAR method experience bullets, Architecture Highlights, and Certifications.
+
+### 6. Token Security
+All GitHub API calls use `process.env.GITHUB_TOKEN` (correct for Render environment). No `$env` syntax. No credentials in source code.
 
 ---
 

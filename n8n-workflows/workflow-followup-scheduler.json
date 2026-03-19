@@ -1,0 +1,183 @@
+{
+  "name": "Job Search - Follow-Up Reminder Scheduler",
+  "nodes": [
+    {
+      "id": "fu-trigger-001",
+      "name": "Daily Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        300,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fu-check-001",
+      "name": "Check Due Follow-Ups",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        550,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const { execSync } = require('child_process');\nconst dbPath = '/home/n8n/.n8n/job_search.db';\n\nfunction sqlQuery(sql) {\n  try {\n    const result = execSync('sqlite3 -json ' + dbPath + ' ' + JSON.stringify(sql), { encoding: 'utf8', timeout: 10000 });\n    return result.trim() ? JSON.parse(result) : [];\n  } catch(e) {\n    console.error('SQLite query error:', e.message);\n    return [];\n  }\n}\n\nconst today = new Date().toISOString().split('T')[0];\n\n// Get all pending follow-ups due today or overdue\nconst dueFollowups = sqlQuery(\n  'SELECT f.id, f.application_id, f.due_date, f.type, a.company_name, a.job_title, a.job_url, a.status ' +\n  'FROM follow_ups f ' +\n  'LEFT JOIN applications a ON f.application_id = a.id ' +\n  'WHERE f.status = \\'pending\\' AND f.due_date <= \\'' + today + '\\' ' +\n  'AND (a.status IS NULL OR a.status NOT IN (\\'rejected\\', \\'withdrawn\\', \\'accepted\\')) ' +\n  'ORDER BY f.due_date ASC ' +\n  'LIMIT 20'\n);\n\nconsole.log('Due follow-ups found: ' + dueFollowups.length);\n\nif (dueFollowups.length === 0) {\n  return [{ json: { status: 'no_followups', count: 0, today: today } }];\n}\n\nreturn dueFollowups.map(function(f) {\n  return { json: {\n    followup_id: f.id,\n    application_id: f.application_id,\n    company_name: f.company_name || 'Unknown',\n    job_title: f.job_title || 'Unknown',\n    job_url: f.job_url || '',\n    due_date: f.due_date,\n    followup_type: f.type,\n    app_status: f.status || 'applied',\n    today: today\n  }};\n});"
+      }
+    },
+    {
+      "id": "fu-filter-001",
+      "name": "Filter - Has Follow-Ups",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        800,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              },
+              "rightValue": "no_followups"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "fu-generate-001",
+      "name": "Generate Follow-Up Email Draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1050,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const data = $input.item.json;\n\nconst followupNumber = data.followup_type === 'follow_up_1' ? '1' :\n  data.followup_type === 'follow_up_2' ? '2' : '3';\n\nconst subject = 'Following up \u2014 ' + data.job_title + ' at ' + data.company_name;\n\nlet emailBody = '';\nif (followupNumber === '1') {\n  emailBody = 'Hi Hiring Team,\\n\\n' +\n    'I wanted to follow up on my application for the ' + data.job_title + ' position at ' + data.company_name + '.\\n\\n' +\n    'I remain very excited about this opportunity and would love to discuss how my experience can contribute to your team.\\n\\n' +\n    'Would you be available for a brief call this week?\\n\\n' +\n    'Best regards,\\n[YOUR NAME]';\n} else if (followupNumber === '2') {\n  emailBody = 'Hi Hiring Team,\\n\\n' +\n    'I am writing to check in on my application for ' + data.job_title + ' at ' + data.company_name + '.\\n\\n' +\n    'I continue to be impressed by ' + data.company_name + '\\'s work and remain very interested in contributing.\\n\\n' +\n    'Please let me know if there is any additional information I can provide.\\n\\n' +\n    'Best regards,\\n[YOUR NAME]';\n} else {\n  emailBody = 'Hi Hiring Team,\\n\\n' +\n    'I wanted to send a final note regarding the ' + data.job_title + ' position at ' + data.company_name + '.\\n\\n' +\n    'I understand if the timing is not right, and I would welcome the opportunity to be considered for future roles.\\n\\n' +\n    'Thank you for your time and consideration.\\n\\n' +\n    'Best regards,\\n[YOUR NAME]';\n}\n\nreturn [{\n  json: {\n    ...data,\n    followup_number: followupNumber,\n    draft_subject: subject,\n    draft_body: emailBody\n  }\n}];"
+      }
+    },
+    {
+      "id": "fu-notify-001",
+      "name": "Send Follow-Up Reminder",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1300,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credential",
+          "name": "Gmail SMTP"
+        }
+      },
+      "parameters": {
+        "fromEmail": "odeliya.charitonova.dev@gmail.com",
+        "toEmail": "odeliya.charitonova.dev@gmail.com",
+        "subject": "=Follow-Up Reminder #{{ $json.followup_number }}: {{ $json.company_name }} - {{ $json.job_title }}",
+        "emailFormat": "html",
+        "html": "=<html><body style=\"font-family: Arial, sans-serif; padding: 20px; max-width: 600px;\"><h2>Follow-Up Reminder</h2><table style=\"border-collapse: collapse; width: 100%; margin-bottom: 20px;\"><tr><td style=\"padding: 8px; font-weight: bold;\">Company:</td><td style=\"padding: 8px;\">{{ $json.company_name }}</td></tr><tr><td style=\"padding: 8px; font-weight: bold;\">Position:</td><td style=\"padding: 8px;\">{{ $json.job_title }}</td></tr><tr><td style=\"padding: 8px; font-weight: bold;\">Follow-Up #:</td><td style=\"padding: 8px;\">{{ $json.followup_number }}</td></tr><tr><td style=\"padding: 8px; font-weight: bold;\">Due Date:</td><td style=\"padding: 8px;\">{{ $json.due_date }}</td></tr></table><h3>Draft Email:</h3><pre style=\"background: #f4f4f4; padding: 15px; border-radius: 4px; white-space: pre-wrap;\">Subject: {{ $json.draft_subject }}\n\n{{ $json.draft_body }}</pre><p><strong>Job URL:</strong> <a href=\"{{ $json.job_url }}\">{{ $json.job_url }}</a></p></body></html>",
+        "options": {}
+      }
+    },
+    {
+      "id": "fu-update-001",
+      "name": "Mark Follow-Up Sent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1550,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const data = $input.item.json;\nconst { execSync } = require('child_process');\nconst dbPath = '/home/n8n/.n8n/job_search.db';\n\nfunction sqlExec(sql) {\n  try {\n    execSync('sqlite3 ' + dbPath, { input: sql, timeout: 10000 });\n  } catch(e) {\n    console.error('SQLite error:', e.message);\n  }\n}\n\nsqlExec('UPDATE follow_ups SET status = \\'reminder_sent\\' WHERE id = ' + data.followup_id + ';');\nconsole.log('Marked follow-up ' + data.followup_id + ' as reminder_sent');\nreturn [$input.item];"
+      }
+    }
+  ],
+  "connections": {
+    "Daily Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check Due Follow-Ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Due Follow-Ups": {
+      "main": [
+        [
+          {
+            "node": "Filter - Has Follow-Ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter - Has Follow-Ups": {
+      "main": [
+        [
+          {
+            "node": "Generate Follow-Up Email Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Follow-Up Email Draft": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-Up Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow-Up Reminder": {
+      "main": [
+        [
+          {
+            "node": "Mark Follow-Up Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

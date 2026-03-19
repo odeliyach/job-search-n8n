@@ -1,0 +1,228 @@
+{
+  "name": "Job Search - Email Listener & Tracker",
+  "nodes": [
+    {
+      "id": "el-trigger-001",
+      "name": "Gmail Trigger - Watch Inbox",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [
+        300,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-credential",
+          "name": "Gmail OAuth2"
+        }
+      },
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "readStatus": "unread"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "el-classify-001",
+      "name": "Classify Email Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        550,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const email = $input.item.json;\nconst subject = (email.subject || '').toLowerCase();\nconst from = (email.from || '').toLowerCase();\nconst body = (email.text || email.snippet || '').toLowerCase();\n\nlet emailType = 'unknown';\nlet priority = 'low';\n\n// Detect rejection emails\nconst rejectionKeywords = ['unfortunately', 'decided to move forward with other', 'not moving forward', 'we will not', 'position has been filled', 'other candidates', 'thank you for your interest'];\nconst interviewKeywords = ['interview', 'schedule', 'availability', 'call', 'meeting', 'speak with'];\nconst offerKeywords = ['offer', 'congratulations', 'pleased to offer', 'compensation', 'start date'];\nconst followupKeywords = ['following up', 'checking in', 'status update', 'update on'];\n\nif (offerKeywords.some(function(k) { return subject.includes(k) || body.includes(k); })) {\n  emailType = 'offer';\n  priority = 'critical';\n} else if (interviewKeywords.some(function(k) { return subject.includes(k) || body.includes(k); })) {\n  emailType = 'interview_invite';\n  priority = 'high';\n} else if (rejectionKeywords.some(function(k) { return body.includes(k); })) {\n  emailType = 'rejection';\n  priority = 'medium';\n} else if (followupKeywords.some(function(k) { return subject.includes(k) || body.includes(k); })) {\n  emailType = 'follow_up_response';\n  priority = 'high';\n}\n\nreturn [{\n  json: {\n    email_id: email.id || '',\n    subject: email.subject || '',\n    from: email.from || '',\n    received_at: email.date || new Date().toISOString(),\n    email_type: emailType,\n    priority: priority,\n    snippet: (email.snippet || '').substring(0, 300)\n  }\n}];"
+      }
+    },
+    {
+      "id": "el-route-001",
+      "name": "Route by Email Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        800,
+        300
+      ],
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.email_type }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "offer"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "offer"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.email_type }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "interview_invite"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "interview"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.email_type }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "rejection"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "rejection"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "el-log-001",
+      "name": "Log to SQLite Database",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1050,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const data = $input.item.json;\nconst { execSync } = require('child_process');\nconst dbPath = '/home/n8n/.n8n/job_search.db';\n\nfunction escapeSql(s) {\n  return String(s || '').replace(/'/g, \"''\");\n}\n\nfunction sqlExec(sql) {\n  try {\n    execSync('sqlite3 ' + dbPath, { input: sql, timeout: 10000 });\n  } catch(e) {\n    console.error('SQLite error:', e.message);\n  }\n}\n\nsqlExec('CREATE TABLE IF NOT EXISTS email_tracking (id INTEGER PRIMARY KEY AUTOINCREMENT, email_id TEXT UNIQUE, subject TEXT, from_address TEXT, received_at TEXT, email_type TEXT, priority TEXT, snippet TEXT, processed_at TEXT DEFAULT CURRENT_TIMESTAMP);');\n\nsqlExec('INSERT OR IGNORE INTO email_tracking (email_id, subject, from_address, received_at, email_type, priority, snippet) VALUES (\\'' + escapeSql(data.email_id) + '\\', \\'' + escapeSql(data.subject) + '\\', \\'' + escapeSql(data.from) + '\\', \\'' + escapeSql(data.received_at) + '\\', \\'' + escapeSql(data.email_type) + '\\', \\'' + escapeSql(data.priority) + '\\', \\'' + escapeSql(data.snippet) + '\\');');\n\nconsole.log('Logged email: ' + data.email_type + ' from ' + data.from);\nreturn [$input.item];"
+      }
+    },
+    {
+      "id": "el-notify-001",
+      "name": "Send Priority Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1300,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credential",
+          "name": "Gmail SMTP"
+        }
+      },
+      "parameters": {
+        "fromEmail": "odeliya.charitonova.dev@gmail.com",
+        "toEmail": "odeliya.charitonova.dev@gmail.com",
+        "subject": "=Job Search Alert [{{ $json.priority.toUpperCase() }}]: {{ $json.email_type }} - {{ $json.from }}",
+        "emailFormat": "html",
+        "html": "=<html><body style=\"font-family: Arial, sans-serif; padding: 20px;\"><h2>Job Search Email Alert</h2><table style=\"border-collapse: collapse; width: 100%;\"><tr><td style=\"padding: 8px; font-weight: bold;\">Type:</td><td style=\"padding: 8px;\">{{ $json.email_type }}</td></tr><tr><td style=\"padding: 8px; font-weight: bold;\">Priority:</td><td style=\"padding: 8px;\">{{ $json.priority }}</td></tr><tr><td style=\"padding: 8px; font-weight: bold;\">From:</td><td style=\"padding: 8px;\">{{ $json.from }}</td></tr><tr><td style=\"padding: 8px; font-weight: bold;\">Subject:</td><td style=\"padding: 8px;\">{{ $json.subject }}</td></tr><tr><td style=\"padding: 8px; font-weight: bold;\">Preview:</td><td style=\"padding: 8px;\">{{ $json.snippet }}</td></tr></table></body></html>",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Gmail Trigger - Watch Inbox": {
+      "main": [
+        [
+          {
+            "node": "Classify Email Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Email Type": {
+      "main": [
+        [
+          {
+            "node": "Route by Email Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Email Type": {
+      "main": [
+        [
+          {
+            "node": "Log to SQLite Database",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log to SQLite Database",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log to SQLite Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to SQLite Database": {
+      "main": [
+        [
+          {
+            "node": "Send Priority Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
