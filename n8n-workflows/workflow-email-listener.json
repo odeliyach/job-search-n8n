@@ -1,0 +1,362 @@
+{
+  "name": "Job Search - Email Listener & Auto-Organizer",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodes": [
+    {
+      "id": "aa100001-bb11-4cc1-dd11-ee1100001111",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ],
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "labelIds": [
+            "INBOX"
+          ],
+          "q": "subject:(application OR interview OR offer OR position OR role OR opportunity OR congratulations OR unfortunately) newer_than:1d"
+        },
+        "options": {
+          "dataPropertyAttachmentsPrefixName": "attachment_",
+          "downloadAttachments": false
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-cred-1",
+          "name": "Gmail OAuth2 - Job Search"
+        }
+      }
+    },
+    {
+      "id": "aa100002-bb11-4cc1-dd11-ee1100002222",
+      "name": "Classify Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Classify incoming email: is it a job application response?\nconst email = $input.item.json;\nconst subject = (email.subject || '').toLowerCase();\nconst body = (email.text || email.body || email.snippet || '').toLowerCase();\nconst from = (email.from || '').toLowerCase();\n\n// Detection patterns\nconst rejectionKeywords = [\n  'unfortunately', 'not moving forward', 'not be moving', 'decided to move',\n  'other candidates', 'not a match', 'not fit', 'unsuccessful', 'regret',\n  'not selected', 'filled the position', 'no longer considering',\n  'decided not to', 'position has been filled', 'will not be proceeding'\n];\n\nconst interviewKeywords = [\n  'interview', 'schedule', 'availability', 'phone screen', 'technical interview',\n  'next steps', 'speak with you', 'chat with you', 'calendar', 'zoom', 'meet'\n];\n\nconst offerKeywords = [\n  'offer', 'congratulations', 'pleased to offer', 'job offer', 'we\\'d like to offer',\n  'compensation', 'start date', 'onboarding'\n];\n\nconst ghostingKeywords = ['follow up', 'following up', 'checking in', 'any update'];\n\nlet emailType = 'unknown';\nlet stage = 'unknown';\n\n// Detect rejection stage from body\nlet rejectionStage = 'unknown';\nif (body.includes('phone') || body.includes('initial')) rejectionStage = 'phone_screen';\nelse if (body.includes('technical') || body.includes('coding') || body.includes('assessment')) rejectionStage = 'technical';\nelse if (body.includes('final') || body.includes('onsite') || body.includes('panel')) rejectionStage = 'final_round';\nelse rejectionStage = 'application';\n\nif (rejectionKeywords.some(function(kw) { return subject.includes(kw) || body.includes(kw); })) {\n  emailType = 'rejection';\n  stage = rejectionStage;\n} else if (offerKeywords.some(function(kw) { return subject.includes(kw) || body.includes(kw); })) {\n  emailType = 'offer';\n  stage = 'offer';\n} else if (interviewKeywords.some(function(kw) { return subject.includes(kw) || body.includes(kw); })) {\n  emailType = 'interview_invite';\n  stage = 'interview';\n} else if (subject.includes('application') || subject.includes('received') || subject.includes('thank you')) {\n  emailType = 'acknowledgement';\n  stage = 'applied';\n}\n\n// Extract company name from subject/from\nconst companyFromSubject = subject.replace(/re:|fwd:|fw:|application|position|role|job/gi, '').trim();\n\nreturn [{\n  json: {\n    ...email,\n    email_type: emailType,\n    rejection_stage: stage,\n    company_hint: companyFromSubject.substring(0, 50),\n    classified_at: new Date().toISOString()\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "aa100003-bb11-4cc1-dd11-ee1100003333",
+      "name": "Route by Email Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        800,
+        300
+      ],
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.email_type }}",
+                    "rightValue": "rejection",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Rejection"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.email_type }}",
+                    "rightValue": "interview_invite",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Interview"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.email_type }}",
+                    "rightValue": "offer",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Offer"
+            }
+          ]
+        },
+        "fallbackOutput": "extra"
+      }
+    },
+    {
+      "id": "aa100004-bb11-4cc1-dd11-ee1100004444",
+      "name": "Handle Rejection",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Context-aware rejection response based on stage reached\nconst data = $input.item.json;\nconst stage = data.rejection_stage || 'application';\nconst company = data.company_hint || 'the company';\n\nlet responseTemplate = '';\nlet folderTarget = 'Rejected';\nlet obsidianStatus = 'Rejected';\n\nif (stage === 'phone_screen') {\n  responseTemplate =\n    'Subject: Thank You - ' + company + ' Application\\n\\n' +\n    'Hi [Recruiter Name],\\n\\n' +\n    'Thank you for letting me know about the decision. I appreciate you taking the time to speak with me during the phone screen.\\n\\n' +\n    'I enjoyed learning about ' + company + ' and the role. While I\\'m disappointed, I understand the competitive nature of these decisions.\\n\\n' +\n    'I\\'d be grateful for any feedback on my candidacy - it would help me improve for future opportunities.\\n\\n' +\n    'I hope to stay in touch and potentially work together in the future.\\n\\n' +\n    'Best regards,\\nOdeliya Charitonova';\n} else if (stage === 'technical') {\n  responseTemplate =\n    'Subject: Thank You - ' + company + ' Technical Interview\\n\\n' +\n    'Hi [Interviewer Name],\\n\\n' +\n    'Thank you for informing me of the decision. I really enjoyed the technical discussions and the challenging problems we explored together.\\n\\n' +\n    'If you\\'re able to share any feedback on my technical performance, I\\'d greatly appreciate it - I\\'m always looking to improve.\\n\\n' +\n    'I have a lot of respect for the engineering culture at ' + company + ' and hope our paths cross again.\\n\\n' +\n    'Best regards,\\nOdeliya Charitonova';\n} else if (stage === 'final_round') {\n  responseTemplate =\n    'Subject: Thank You - ' + company + ' Interview Process\\n\\n' +\n    'Hi [Hiring Manager Name],\\n\\n' +\n    'Thank you for informing me of your decision after such a thorough process. I was genuinely excited about the opportunity and the team at ' + company + '.\\n\\n' +\n    'Going through the final round gave me great insight into how you approach engineering challenges, and I have enormous respect for what you\\'re building.\\n\\n' +\n    'I\\'d welcome the opportunity to stay connected - and I\\'d be very grateful for any specific feedback you can share.\\n\\n' +\n    'I hope we can find an opportunity to work together in the future.\\n\\n' +\n    'Best regards,\\nOdeliya Charitonova';\n} else {\n  responseTemplate =\n    'Subject: Thank You - ' + company + ' Application\\n\\n' +\n    'Hi,\\n\\n' +\n    'Thank you for letting me know. I appreciate your transparency and wish the team all the best.\\n\\n' +\n    'I\\'d be happy to be considered for future opportunities that might be a better match.\\n\\n' +\n    'Best regards,\\nOdeliya Charitonova';\n}\n\nreturn [{\n  json: {\n    ...data,\n    response_template: responseTemplate,\n    folder_target: folderTarget,\n    obsidian_status: obsidianStatus,\n    status_update: 'Rejected - ' + stage,\n    update_timestamp: new Date().toISOString()\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "aa100005-bb11-4cc1-dd11-ee1100005555",
+      "name": "Update Obsidian - Rejected",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Update Obsidian vault via GitHub API - move file to correct status folder\nconst githubToken = process.env.GITHUB_TOKEN || '';\nconst data = $input.item.json;\n\nif (!githubToken) {\n  return [{ json: { ...data, obsidian_update: 'skipped - no token' } }];\n}\n\nconst owner = 'odeliyach';\nconst repo = 'job-search-data';\nconst newStatus = data.obsidian_status || 'Active';\nconst emailType = data.email_type || 'unknown';\n\n// Log the email type and status for tracking\nconst logEntry =\n  '## Email Received: ' + new Date().toISOString().substring(0, 10) + '\\n' +\n  '- Type: ' + emailType + '\\n' +\n  '- Stage: ' + (data.rejection_stage || 'N/A') + '\\n' +\n  '- Status: ' + newStatus + '\\n' +\n  '- Subject: ' + (data.subject || '') + '\\n\\n';\n\ntry {\n  const headers = {\n    'Authorization': 'token ' + githubToken,\n    'Accept': 'application/vnd.github.v3+json',\n    'Content-Type': 'application/json'\n  };\n\n  // Search for existing tracking file in Active folder\n  const searchResp = await $helpers.httpRequest({\n    method: 'GET',\n    url: 'https://api.github.com/repos/' + owner + '/' + repo + '/git/refs/heads/main',\n    headers: headers\n  });\n\n  // Create a status log file in the vault\n  const statusLogPath = 'Obsidian_Vault/Email_Log/' + new Date().toISOString().substring(0, 10) + '-' + emailType + '.md';\n  const statusContent =\n    '# Email Log: ' + (data.subject || 'Unknown Subject') + '\\n\\n' +\n    '- **Date:** ' + new Date().toISOString().substring(0, 10) + '\\n' +\n    '- **From:** ' + (data.from || 'Unknown') + '\\n' +\n    '- **Type:** ' + emailType + '\\n' +\n    '- **Stage:** ' + (data.rejection_stage || 'N/A') + '\\n' +\n    '- **New Status:** ' + newStatus + '\\n\\n' +\n    '## Response Template\\n\\n' + (data.response_template || 'N/A') + '\\n';\n\n  const currentSha = searchResp.object.sha;\n  const commitData = await $helpers.httpRequest({\n    method: 'GET',\n    url: 'https://api.github.com/repos/' + owner + '/' + repo + '/git/commits/' + currentSha,\n    headers: headers\n  });\n\n  const blobResp = await $helpers.httpRequest({\n    method: 'POST',\n    url: 'https://api.github.com/repos/' + owner + '/' + repo + '/git/blobs',\n    headers: headers,\n    body: {\n      content: Buffer.from(statusContent).toString('base64'),\n      encoding: 'base64'\n    }\n  });\n\n  const treeResp = await $helpers.httpRequest({\n    method: 'POST',\n    url: 'https://api.github.com/repos/' + owner + '/' + repo + '/git/trees',\n    headers: headers,\n    body: {\n      base_tree: commitData.tree.sha,\n      tree: [{ path: statusLogPath, mode: '100644', type: 'blob', sha: blobResp.sha }]\n    }\n  });\n\n  const newCommit = await $helpers.httpRequest({\n    method: 'POST',\n    url: 'https://api.github.com/repos/' + owner + '/' + repo + '/git/commits',\n    headers: headers,\n    body: {\n      message: 'Email received: ' + emailType + ' - ' + (data.subject || '').substring(0, 50),\n      tree: treeResp.sha,\n      parents: [currentSha],\n      author: { name: 'Odeliya Charitonova', email: 'odaliya12@gmail.com', date: new Date().toISOString() }\n    }\n  });\n\n  await $helpers.httpRequest({\n    method: 'PATCH',\n    url: 'https://api.github.com/repos/' + owner + '/' + repo + '/git/refs/heads/main',\n    headers: headers,\n    body: { sha: newCommit.sha, force: false }\n  });\n\n  return [{ json: { ...data, obsidian_update: 'success', log_path: statusLogPath } }];\n} catch (e) {\n  return [{ json: { ...data, obsidian_update: 'error', obsidian_error: e.message } }];\n}\n"
+      }
+    },
+    {
+      "id": "aa100006-bb11-4cc1-dd11-ee1100006666",
+      "name": "Notify - Rejection Received",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1700,
+        100
+      ],
+      "parameters": {
+        "fromEmail": "odeliya.charitonova.dev@gmail.com",
+        "toEmail": "odeliya.charitonova.dev@gmail.com",
+        "subject": "=Job Search Update: Rejection - {{ $json.company_hint }}",
+        "emailFormat": "html",
+        "html": "=<html><body style=\"font-family: Arial, sans-serif; padding: 20px;\"><h2 style=\"color: #dc3545;\">Rejection Received</h2><p><strong>Company:</strong> {{ $json.company_hint }}</p><p><strong>Stage:</strong> {{ $json.rejection_stage }}</p><p><strong>Subject:</strong> {{ $json.subject }}</p><hr/><h3>Suggested Response</h3><pre style=\"background:#f8f9fa;padding:15px;border-radius:5px;\">{{ $json.response_template }}</pre><p><em>Obsidian Status Updated: {{ $json.obsidian_status }}</em></p></body></html>",
+        "options": {}
+      }
+    },
+    {
+      "id": "aa100007-bb11-4cc1-dd11-ee1100007777",
+      "name": "Update Obsidian - Interview",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const data = $input.item.json;\nreturn [{\n  json: {\n    ...data,\n    obsidian_status: 'Active',\n    folder_target: 'Active',\n    status_update: 'Interview Invited',\n    update_timestamp: new Date().toISOString()\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "aa100008-bb11-4cc1-dd11-ee1100008888",
+      "name": "Notify - Interview Invite",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        300
+      ],
+      "parameters": {
+        "fromEmail": "odeliya.charitonova.dev@gmail.com",
+        "toEmail": "odeliya.charitonova.dev@gmail.com",
+        "subject": "=Interview Invite: {{ $json.company_hint }} - Schedule NOW",
+        "emailFormat": "html",
+        "html": "=<html><body style=\"font-family: Arial, sans-serif; padding: 20px;\"><h2 style=\"color: #28a745;\">Interview Invite Received!</h2><p><strong>Company:</strong> {{ $json.company_hint }}</p><p><strong>Subject:</strong> {{ $json.subject }}</p><p style=\"background:#d4edda;padding:15px;border-radius:5px;\"><strong>Action Required:</strong> Reply to schedule interview ASAP.</p><p>Obsidian folder: Active</p></body></html>",
+        "options": {}
+      }
+    },
+    {
+      "id": "aa100009-bb11-4cc1-dd11-ee1100009999",
+      "name": "Update Obsidian - Offer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        500
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const data = $input.item.json;\nreturn [{\n  json: {\n    ...data,\n    obsidian_status: 'Offers',\n    folder_target: 'Offers',\n    status_update: 'Offer Received',\n    update_timestamp: new Date().toISOString()\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "aa100010-bb11-4cc1-dd11-ee1100010010",
+      "name": "Notify - Offer Received",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        500
+      ],
+      "parameters": {
+        "fromEmail": "odeliya.charitonova.dev@gmail.com",
+        "toEmail": "odeliya.charitonova.dev@gmail.com",
+        "subject": "=OFFER RECEIVED: {{ $json.company_hint }} - Review Immediately",
+        "emailFormat": "html",
+        "html": "=<html><body style=\"font-family: Arial, sans-serif; padding: 20px;\"><h2 style=\"color: #007bff;\">Offer Received!</h2><p><strong>Company:</strong> {{ $json.company_hint }}</p><p><strong>Subject:</strong> {{ $json.subject }}</p><p style=\"background:#cce5ff;padding:15px;border-radius:5px;\"><strong>Review the offer carefully. Use Prompt #8 (Salary Negotiation) for guidance.</strong></p><p>Obsidian folder: Offers</p></body></html>",
+        "options": {}
+      }
+    },
+    {
+      "id": "aa100011-bb11-4cc1-dd11-ee1100011011",
+      "name": "Log Unknown Email",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        700
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Classify Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Email": {
+      "main": [
+        [
+          {
+            "node": "Route by Email Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Email Type": {
+      "main": [
+        [
+          {
+            "node": "Handle Rejection",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Obsidian - Interview",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Obsidian - Offer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Unknown Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Rejection": {
+      "main": [
+        [
+          {
+            "node": "Update Obsidian - Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Obsidian - Rejected": {
+      "main": [
+        [
+          {
+            "node": "Notify - Rejection Received",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Obsidian - Interview": {
+      "main": [
+        [
+          {
+            "node": "Notify - Interview Invite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Obsidian - Offer": {
+      "main": [
+        [
+          {
+            "node": "Notify - Offer Received",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
