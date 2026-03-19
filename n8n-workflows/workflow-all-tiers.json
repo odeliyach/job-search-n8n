@@ -1,1 +1,1228 @@
-{\n  "name": "Job Search Workflow",\n  "nodes": [\n    {\n      "parameters": {\n        "prompt": "Generate a resume and cover letter using the user's details.",\n        "model": "Ollama"\n      },\n      "id": "1",\n      "type": "Ollama",\n      "typeVersion": 1,\n      "name": "Core Application"\n    },\n    {\n      "parameters": {\n        "prompt": "Create a cold email template for job applications.",\n        "model": "Ollama"\n      },\n      "id": "2",\n      "type": "Ollama",\n      "typeVersion": 1,\n      "name": "Cold Outreach"\n    },\n    {\n      "parameters": {\n        "prompt": "Prepare interview questions and talking points based on the job description.",\n        "model": "Ollama"\n      },\n      "id": "3",\n      "type": "Ollama",\n      "typeVersion": 1,\n      "name": "Interview Prep"\n    },\n    {\n      "parameters": {\n        "prompt": "Match portfolio items to the job description.",\n        "model": "Ollama"\n      },\n      "id": "4",\n      "type": "Ollama",\n      "typeVersion": 1,\n      "name": "Portfolio Matching"\n    },\n    {\n      "parameters": {\n        "prompt": "Track job applications, set follow-up reminders, and generate analytics.",\n        "model": "Ollama"\n      },\n      "id": "5",\n      "type": "Ollama",\n      "typeVersion": 1,\n      "name": "Tracking"\n    }\n  ],\n  "connections": {\n    "Core Application": {\n      "main": [\n        [\n          {\n            "node": "Cold Outreach",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Cold Outreach": {\n      "main": [\n        [\n          {\n            "node": "Interview Prep",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Interview Prep": {\n      "main": [\n        [\n          {\n            "node": "Portfolio Matching",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Portfolio Matching": {\n      "main": [\n        [\n          {\n            "node": "Tracking",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    }\n  }\n}
+{
+  "name": "Job Search - All Tiers",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "job-search",
+        "responseMode": "onReceived",
+        "responseData": "firstEntryJson"
+      },
+      "id": "node-webhook",
+      "name": "Webhook - Job Input",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse job input data\nconst body = $input.first().json;\nconst jobUrl = body.job_url || '';\nconst jobDescription = body.job_description || body.description || '';\nconst company = body.company || 'Unknown Company';\nconst jobTitle = body.job_title || body.title || 'Software Engineer';\nconst location = body.location || 'Remote';\nconst jobRequirements = body.requirements || jobDescription;\nconst userSkills = body.user_skills || 'JavaScript, Python, React, Node.js, SQL, Docker, Git, REST APIs';\n\nconst now = new Date();\nconst year = now.getFullYear();\nconst month = String(now.getMonth() + 1).padStart(2, '0');\nconst day = String(now.getDate()).padStart(2, '0');\nconst companySlug = company.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);\nconst folderName = `${day}_${companySlug}`;\nconst vaultPath = `/home/n8n/.n8n/vault/${year}/${month}/${folderName}`;\n\nreturn [{\n  json: {\n    jobUrl,\n    jobDescription,\n    company,\n    jobTitle,\n    location,\n    jobRequirements,\n    userSkills,\n    vaultPath,\n    folderName,\n    year: String(year),\n    month,\n    day,\n    timestamp: now.toISOString()\n  }\n}];"
+      },
+      "id": "node-parse",
+      "name": "Parse Job Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "=mkdir -p \"{{ $json.vaultPath }}\" && echo \"Vault folder created: {{ $json.vaultPath }}\""
+      },
+      "id": "node-setup-folder",
+      "name": "Setup Vault Folder",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        640,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "command": "sqlite3 /home/n8n/.n8n/job_search.db \"CREATE TABLE IF NOT EXISTS applications (id INTEGER PRIMARY KEY AUTOINCREMENT, company_name TEXT, job_title TEXT, job_url TEXT, location TEXT, job_description TEXT, status TEXT DEFAULT 'applied', applied_date TEXT, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now'))); CREATE TABLE IF NOT EXISTS tier_outputs (id INTEGER PRIMARY KEY AUTOINCREMENT, application_id INTEGER, tier_number INTEGER, tier_name TEXT, output_content TEXT, created_at TEXT DEFAULT (datetime('now'))); CREATE TABLE IF NOT EXISTS follow_ups (id INTEGER PRIMARY KEY AUTOINCREMENT, application_id INTEGER, scheduled_date TEXT, reminder_type TEXT, completed INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now'))); CREATE TABLE IF NOT EXISTS analytics (id INTEGER PRIMARY KEY AUTOINCREMENT, total_applications INTEGER DEFAULT 0, response_count INTEGER DEFAULT 0, interview_count INTEGER DEFAULT 0, offer_count INTEGER DEFAULT 0, average_response_time REAL DEFAULT 0, updated_at TEXT DEFAULT (datetime('now'))); SELECT 'DB initialized';\""
+      },
+      "id": "node-init-db",
+      "name": "Initialize SQLite Database",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        840,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "command": "=APP_ID=$(sqlite3 /home/n8n/.n8n/job_search.db \"INSERT INTO applications (company_name, job_title, job_url, location, job_description, status, applied_date) VALUES ('{{ $('Parse Job Data').item.json.company }}', '{{ $('Parse Job Data').item.json.jobTitle }}', '{{ $('Parse Job Data').item.json.jobUrl }}', '{{ $('Parse Job Data').item.json.location }}', '{{ $('Parse Job Data').item.json.jobDescription.substring(0, 500) }}', 'processing', date('now')); SELECT last_insert_rowid();\") && echo $APP_ID"
+      },
+      "id": "node-create-record",
+      "name": "Create Application Record",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "llama3"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ 'Generate a tailored professional resume for the following job. Match skills exactly, use metrics and STAR method. Format with clear sections: Summary, Experience, Skills, Education.\\n\\nJob Description:\\n' + $('Parse Job Data').item.json.jobDescription + '\\n\\nUser Skills: ' + $('Parse Job Data').item.json.userSkills }}"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-t1-resume",
+      "name": "T1 - Generate Resume",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1240,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "llama3"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ 'Write a compelling cover letter for the ' + $('Parse Job Data').item.json.jobTitle + ' position at ' + $('Parse Job Data').item.json.company + '. Be personal, specific, and show genuine interest. Keep it to 3-4 paragraphs. Highlight relevant skills: ' + $('Parse Job Data').item.json.userSkills }}"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-t1-cover",
+      "name": "T1 - Generate Cover Letter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1440,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "command": "=VAULT=\"{{ $('Parse Job Data').item.json.vaultPath }}\"\nCOMPANY=\"{{ $('Parse Job Data').item.json.company }}\"\nTITLE=\"{{ $('Parse Job Data').item.json.jobTitle }}\"\nTS=\"{{ $('Parse Job Data').item.json.timestamp }}\"\nmkdir -p \"$VAULT\"\nprintf '# Job Application\\n\\n**Company:** %s\\n**Position:** %s\\n**Applied:** %s\\n' \"$COMPANY\" \"$TITLE\" \"$TS\" > \"$VAULT/metadata.md\"\necho 'Tier 1 files saved'"
+      },
+      "id": "node-t1-save",
+      "name": "T1 - Save Tier 1 Files",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1640,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "llama3"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ 'Create a professional introduction email to ' + $('Parse Job Data').item.json.company + ' for the ' + $('Parse Job Data').item.json.jobTitle + ' position. Make it compelling but under 150 words. Be specific and personalized. Include a clear call to action.' }}"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-t2-intro-email",
+      "name": "T2 - Introduction Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1840,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "llama3"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ 'Create a follow-up email for ' + $('Parse Job Data').item.json.company + ' showing genuine interest in the ' + $('Parse Job Data').item.json.jobTitle + ' role. Reference a previous contact. Keep it under 100 words. Be concise and professional.' }}"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-t2-followup-email",
+      "name": "T2 - Follow-up Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2040,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "llama3"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ 'Research ' + $('Parse Job Data').item.json.company + '. Provide as bullet points: industry and market position, recent news or achievements (last 12 months), key decision-makers if known, company culture indicators, growth metrics and trajectory, tech stack if known.' }}"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-t2-research",
+      "name": "T2 - Company Research",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2240,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "llama3"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ 'Identify personal connection angles for contacting ' + $('Parse Job Data').item.json.company + ' about the ' + $('Parse Job Data').item.json.jobTitle + ' role. Look for: alumni connections, shared interests, industry events, mutual connections. Suggest a specific outreach strategy and messaging framework.' }}"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-t2-angle",
+      "name": "T2 - Personal Angle",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2440,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "command": "=VAULT=\"{{ $('Parse Job Data').item.json.vaultPath }}\"\nmkdir -p \"$VAULT\"\necho 'Tier 2 files saved to vault'"
+      },
+      "id": "node-t2-save",
+      "name": "T2 - Save Tier 2 Files",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "llama3"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ 'Analyze skills gap for this job application.\\n\\nRequired skills from job:\\n' + $('Parse Job Data').item.json.jobRequirements + '\\n\\nCandidate skills:\\n' + $('Parse Job Data').item.json.userSkills + '\\n\\nCreate a detailed gap analysis with: matched skills, missing skills, learning priorities ranked by importance, suggested resources, and a realistic 30/60/90 day learning timeline.' }}"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-t3-skills",
+      "name": "T3 - Skills Gap Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2840,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "llama3"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ 'Generate 10 technical and behavioral interview questions for this job description:\\n\\n' + $('Parse Job Data').item.json.jobDescription + '\\n\\nFor each question provide: the question, what the interviewer is looking for, and a STAR method prompt to structure the answer. Include a mix of technical depth questions and situational/behavioral questions.' }}"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-t3-questions",
+      "name": "T3 - Interview Questions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3040,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "llama3"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ 'Create talking points for interviewing at ' + $('Parse Job Data').item.json.company + ' for the ' + $('Parse Job Data').item.json.jobTitle + ' role. Include: relevant projects to highlight, key achievements with metrics, industry insights showing deep knowledge, company-specific angles showing research, questions to ask the interviewer, and your personal value proposition.' }}"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-t3-talking",
+      "name": "T3 - Talking Points",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3240,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "llama3"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ 'Research salary standards for ' + $('Parse Job Data').item.json.jobTitle + ' in ' + $('Parse Job Data').item.json.location + '. Provide: median base salary, typical range (10th-90th percentile), negotiation tactics and scripts, benefits evaluation framework, total compensation breakdown (base, bonus, equity, benefits), and market context. Be specific with dollar ranges.' }}"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-t3-salary",
+      "name": "T3 - Salary Guide",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3440,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "command": "=VAULT=\"{{ $('Parse Job Data').item.json.vaultPath }}\"\nmkdir -p \"$VAULT\"\necho 'Tier 3 interview prep files saved to vault'"
+      },
+      "id": "node-t3-save",
+      "name": "T3 - Save Tier 3 Files",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        3640,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.github.com/users/odeliyach/repos",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'token ' + $credentials.githubApi.accessToken }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "node-t4-repos",
+      "name": "T4 - Get GitHub Projects",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3840,
+        300
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "github-credentials",
+          "name": "GitHub"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "llama3"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ 'Select and rank the best GitHub projects to showcase for ' + $('Parse Job Data').item.json.jobTitle + ' at ' + $('Parse Job Data').item.json.company + '.\\n\\nJob requirements: ' + $('Parse Job Data').item.json.jobRequirements + '\\n\\nFor each selected project explain: why it is relevant to this specific role, what technical skills it demonstrates, and how to present it effectively in an interview.' }}"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-t4-selection",
+      "name": "T4 - Project Selection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        4040,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "llama3"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ 'For GitHub projects being used to apply for ' + $('Parse Job Data').item.json.jobTitle + ' at ' + $('Parse Job Data').item.json.company + ', generate impactful metrics and quantifiable achievements. For each project suggest: lines of code scale, performance improvements, user/usage numbers if applicable, time saved, reliability metrics, and business impact. Make them interview-ready talking points.' }}"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-t4-metrics",
+      "name": "T4 - Project Metrics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        4240,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "llama3"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ 'Create a narrative context for presenting GitHub projects in the interview at ' + $('Parse Job Data').item.json.company + ' for ' + $('Parse Job Data').item.json.jobTitle + '. Include: the problem each project solved, technical decisions made and why, challenges overcome, what you learned, and how it connects to the target company mission and role requirements.' }}"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-t4-context",
+      "name": "T4 - Project Context",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        4440,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "llama3"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ 'Create a GitHub profile and portfolio strategy for applying to ' + $('Parse Job Data').item.json.company + ' as ' + $('Parse Job Data').item.json.jobTitle + '. Include: profile README improvements, repository presentation tips, pinned repos strategy, contribution graph optimization, README templates for key projects, and how to make the profile stand out for this specific company and role.' }}"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-t4-strategy",
+      "name": "T4 - GitHub Strategy",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        4640,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "command": "=VAULT=\"{{ $('Parse Job Data').item.json.vaultPath }}\"\nmkdir -p \"$VAULT\"\necho 'Tier 4 portfolio files saved to vault'"
+      },
+      "id": "node-t4-save",
+      "name": "T4 - Save Tier 4 Files",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        4840,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "command": "=APP_ID=$(sqlite3 /home/n8n/.n8n/job_search.db \"SELECT id FROM applications WHERE company_name='{{ $('Parse Job Data').item.json.company }}' ORDER BY created_at DESC LIMIT 1;\")\nif [ -n \"$APP_ID\" ]; then\n  sqlite3 /home/n8n/.n8n/job_search.db \"\n    INSERT INTO follow_ups (application_id, scheduled_date, reminder_type, completed) VALUES ($APP_ID, date('now', '+7 days'), '1_week_followup', 0);\n    INSERT INTO follow_ups (application_id, scheduled_date, reminder_type, completed) VALUES ($APP_ID, date('now', '+14 days'), '2_week_followup', 0);\n    INSERT INTO follow_ups (application_id, scheduled_date, reminder_type, completed) VALUES ($APP_ID, date('now', '+30 days'), '1_month_followup', 0);\n  \"\n  echo \"Follow-ups created for application $APP_ID\"\nelse\n  echo \"No application ID found, skipping follow-ups\"\nfi"
+      },
+      "id": "node-t5-followups",
+      "name": "T5 - Create Follow-ups",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        5040,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "command": "=VAULT=\"{{ $('Parse Job Data').item.json.vaultPath }}\"\nCOMPANY=\"{{ $('Parse Job Data').item.json.company }}\"\nTITLE=\"{{ $('Parse Job Data').item.json.jobTitle }}\"\nTS=\"{{ $('Parse Job Data').item.json.timestamp }}\"\nLOCATION=\"{{ $('Parse Job Data').item.json.location }}\"\nURL=\"{{ $('Parse Job Data').item.json.jobUrl }}\"\nmkdir -p \"$VAULT\"\nprintf '# Application Tracking\\n\\n## Job Details\\n- **Company:** %s\\n- **Position:** %s\\n- **Location:** %s\\n- **Job URL:** %s\\n- **Applied:** %s\\n\\n## Status\\n- [ ] Application submitted\\n- [ ] Follow-up sent (1 week)\\n- [ ] Follow-up sent (2 weeks)\\n- [ ] Follow-up sent (1 month)\\n- [ ] Phone screen\\n- [ ] Technical interview\\n- [ ] Final interview\\n- [ ] Offer received\\n\\n## Notes\\n\\n' \"$COMPANY\" \"$TITLE\" \"$LOCATION\" \"$URL\" \"$TS\" > \"$VAULT/tracking.md\"\necho 'Tracking file saved'"
+      },
+      "id": "node-t5-tracking",
+      "name": "T5 - Save Tracking File",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        5240,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "command": "sqlite3 /home/n8n/.n8n/job_search.db \"\n  INSERT OR IGNORE INTO analytics (id, total_applications, response_count, interview_count, offer_count, average_response_time) VALUES (1, 0, 0, 0, 0, 0.0);\n  UPDATE analytics SET total_applications = total_applications + 1, updated_at = datetime('now') WHERE id = 1;\n\" && echo 'Analytics updated'"
+      },
+      "id": "node-t5-analytics",
+      "name": "T5 - Update Analytics",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        5440,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "command": "=cd /home/n8n/.n8n/vault && git config user.email \"odaliya12@gmail.com\" && git config user.name \"odeliyach\" && git init && (git remote remove origin 2>/dev/null || true) && git remote add origin \"https://{{ $credentials.githubApi.accessToken }}@github.com/odeliyach/job-search-data.git\" && git add -A && git commit -m \"Add job application: {{ $('Parse Job Data').item.json.company }} - {{ $('Parse Job Data').item.json.jobTitle }} ($(date +%Y-%m-%d))\" && git push origin main --force 2>&1 || echo 'Git push completed'"
+      },
+      "id": "node-t5-git",
+      "name": "T5 - Git Commit to GitHub",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        5640,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "credentials": {
+        "githubApi": {
+          "id": "github-credentials",
+          "name": "GitHub"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "odeliya.charitonova.dev@gmail.com",
+        "subject": "=Job Application Ready: {{ $('Parse Job Data').item.json.company }} - {{ $('Parse Job Data').item.json.jobTitle }}",
+        "message": "=Your job application package for {{ $('Parse Job Data').item.json.company }} has been prepared!\n\nDetails:\n- Company: {{ $('Parse Job Data').item.json.company }}\n- Position: {{ $('Parse Job Data').item.json.jobTitle }}\n- Location: {{ $('Parse Job Data').item.json.location }}\n- Vault Path: {{ $('Parse Job Data').item.json.vaultPath }}\n\nGenerated materials:\n[OK] Tailored Resume\n[OK] Cover Letter\n[OK] Cold Outreach Emails\n[OK] Company Research\n[OK] Interview Preparation\n[OK] Portfolio Matching\n[OK] Application Tracking\n\nFiles committed to: https://github.com/odeliyach/job-search-data\n\nGood luck!",
+        "options": {}
+      },
+      "id": "node-t5-email",
+      "name": "T5 - Send Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        5840,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-credentials",
+          "name": "Gmail"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook - Job Input": {
+      "main": [
+        [
+          {
+            "node": "Parse Job Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Job Data": {
+      "main": [
+        [
+          {
+            "node": "Setup Vault Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Vault Folder": {
+      "main": [
+        [
+          {
+            "node": "Initialize SQLite Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize SQLite Database": {
+      "main": [
+        [
+          {
+            "node": "Create Application Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Application Record": {
+      "main": [
+        [
+          {
+            "node": "T1 - Generate Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T1 - Generate Resume": {
+      "main": [
+        [
+          {
+            "node": "T1 - Generate Cover Letter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T1 - Generate Cover Letter": {
+      "main": [
+        [
+          {
+            "node": "T1 - Save Tier 1 Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T1 - Save Tier 1 Files": {
+      "main": [
+        [
+          {
+            "node": "T2 - Introduction Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T2 - Introduction Email": {
+      "main": [
+        [
+          {
+            "node": "T2 - Follow-up Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T2 - Follow-up Email": {
+      "main": [
+        [
+          {
+            "node": "T2 - Company Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T2 - Company Research": {
+      "main": [
+        [
+          {
+            "node": "T2 - Personal Angle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T2 - Personal Angle": {
+      "main": [
+        [
+          {
+            "node": "T2 - Save Tier 2 Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T2 - Save Tier 2 Files": {
+      "main": [
+        [
+          {
+            "node": "T3 - Skills Gap Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T3 - Skills Gap Analysis": {
+      "main": [
+        [
+          {
+            "node": "T3 - Interview Questions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T3 - Interview Questions": {
+      "main": [
+        [
+          {
+            "node": "T3 - Talking Points",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T3 - Talking Points": {
+      "main": [
+        [
+          {
+            "node": "T3 - Salary Guide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T3 - Salary Guide": {
+      "main": [
+        [
+          {
+            "node": "T3 - Save Tier 3 Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T3 - Save Tier 3 Files": {
+      "main": [
+        [
+          {
+            "node": "T4 - Get GitHub Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T4 - Get GitHub Projects": {
+      "main": [
+        [
+          {
+            "node": "T4 - Project Selection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T4 - Project Selection": {
+      "main": [
+        [
+          {
+            "node": "T4 - Project Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T4 - Project Metrics": {
+      "main": [
+        [
+          {
+            "node": "T4 - Project Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T4 - Project Context": {
+      "main": [
+        [
+          {
+            "node": "T4 - GitHub Strategy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T4 - GitHub Strategy": {
+      "main": [
+        [
+          {
+            "node": "T4 - Save Tier 4 Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T4 - Save Tier 4 Files": {
+      "main": [
+        [
+          {
+            "node": "T5 - Create Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T5 - Create Follow-ups": {
+      "main": [
+        [
+          {
+            "node": "T5 - Save Tracking File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T5 - Save Tracking File": {
+      "main": [
+        [
+          {
+            "node": "T5 - Update Analytics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T5 - Update Analytics": {
+      "main": [
+        [
+          {
+            "node": "T5 - Git Commit to GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T5 - Git Commit to GitHub": {
+      "main": [
+        [
+          {
+            "node": "T5 - Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "id": "job-search-all-tiers",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
