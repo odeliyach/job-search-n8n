@@ -1,0 +1,296 @@
+{
+  "name": "Job Search - Follow-Up Scheduler",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodes": [
+    {
+      "id": "bb200001-cc22-4dd2-ee22-ff2200001111",
+      "name": "Daily 9 AM Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "bb200002-cc22-4dd2-ee22-ff2200002222",
+      "name": "Check Follow-Up Schedule",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Check which applications need follow-ups today\nconst githubToken = process.env.GITHUB_TOKEN || '';\nconst today = new Date().toISOString().split('T')[0];\n\nif (!githubToken) {\n  return [{ json: { followups_needed: [], error: 'No GitHub token' } }];\n}\n\nconst owner = 'odeliyach';\nconst repo = 'job-search-data';\nconst headers = {\n  'Authorization': 'token ' + githubToken,\n  'Accept': 'application/vnd.github.v3+json'\n};\n\ntry {\n  // Get the tracking files from the vault Active folder\n  let trackingFiles = [];\n  try {\n    const contentsResp = await $helpers.httpRequest({\n      method: 'GET',\n      url: 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/Obsidian_Vault/Active',\n      headers: headers\n    });\n    // Look through each year/month/company folder for tracking.md files\n    if (Array.isArray(contentsResp)) {\n      for (const yearDir of contentsResp) {\n        if (yearDir.type === 'dir') {\n          try {\n            const monthDirs = await $helpers.httpRequest({\n              method: 'GET',\n              url: 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + yearDir.path,\n              headers: headers\n            });\n            for (const monthDir of monthDirs) {\n              if (monthDir.type === 'dir') {\n                try {\n                  const appDirs = await $helpers.httpRequest({\n                    method: 'GET',\n                    url: 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + monthDir.path,\n                    headers: headers\n                  });\n                  for (const appDir of appDirs) {\n                    if (appDir.type === 'dir') {\n                      trackingFiles.push(appDir.path + '/tracking.md');\n                    }\n                  }\n                } catch (e) { /* skip */ }\n              }\n            }\n          } catch (e) { /* skip */ }\n        }\n      }\n    }\n  } catch (e) {\n    // Vault may not exist yet\n    trackingFiles = [];\n  }\n\n  const followupsNeeded = [];\n\n  // Check each tracking file for due dates\n  for (const filePath of trackingFiles) {\n    try {\n      const fileResp = await $helpers.httpRequest({\n        method: 'GET',\n        url: 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + filePath,\n        headers: headers\n      });\n      const content = Buffer.from(fileResp.content, 'base64').toString('utf-8');\n\n      // Parse follow-up dates from tracking.md\n      const day3Match = content.match(/Day 3 check-in: (\\d{4}-\\d{2}-\\d{2})/);\n      const day7Match = content.match(/Day 7 follow-up: (\\d{4}-\\d{2}-\\d{2})/);\n      const day30Match = content.match(/Day 30 check-in: (\\d{4}-\\d{2}-\\d{2})/);\n      const day90Match = content.match(/90-day check-in: (\\d{4}-\\d{2}-\\d{2})/);\n      const companyMatch = content.match(/Company: ([^\\n]+)/);\n      const titleMatch = content.match(/Title: ([^\\n]+)/);\n\n      const company = companyMatch ? companyMatch[1].trim() : filePath;\n      const title = titleMatch ? titleMatch[1].trim() : 'Position';\n\n      const checks = [\n        { date: day3Match ? day3Match[1] : null, type: 'day_3', label: 'Day 3 Check-In' },\n        { date: day7Match ? day7Match[1] : null, type: 'day_7', label: 'Day 7 Follow-Up' },\n        { date: day30Match ? day30Match[1] : null, type: 'day_30', label: 'Day 30 Check-In' },\n        { date: day90Match ? day90Match[1] : null, type: 'day_90', label: '90-Day Check-In' }\n      ];\n\n      for (const check of checks) {\n        if (check.date === today) {\n          followupsNeeded.push({\n            company: company,\n            title: title,\n            followup_type: check.type,\n            followup_label: check.label,\n            due_date: today,\n            file_path: filePath\n          });\n        }\n      }\n    } catch (e) { /* skip */ }\n  }\n\n  return [{ json: { followups_needed: followupsNeeded, checked_date: today, files_checked: trackingFiles.length } }];\n\n} catch (e) {\n  return [{ json: { followups_needed: [], error: e.message } }];\n}\n"
+      }
+    },
+    {
+      "id": "bb200003-cc22-4dd2-ee22-ff2200003333",
+      "name": "Any Follow-Ups Today?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        800,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.followups_needed.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "bb200004-cc22-4dd2-ee22-ff2200004444",
+      "name": "Generate Follow-Up Emails",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Generate follow-up messages for each application needing follow-up\nconst data = $input.item.json;\nconst followups = data.followups_needed || [];\n\nif (followups.length === 0) {\n  return [{ json: { message: 'No follow-ups needed today', date: data.checked_date } }];\n}\n\nasync function callOllama(prompt) {\n  try {\n    const resp = await $helpers.httpRequest({\n      method: 'POST',\n      url: 'http://ollama:11434/api/generate',\n      headers: { 'Content-Type': 'application/json' },\n      body: { model: 'llama3.2', prompt: prompt, stream: false }\n    });\n    return (resp && resp.response) ? resp.response : '[No response]';\n  } catch (e) {\n    return '[Ollama Error: ' + e.message + ']';\n  }\n}\n\nconst results = [];\n\nfor (const followup of followups) {\n  let prompt = '';\n\n  if (followup.followup_type === 'day_3') {\n    prompt =\n      'Write a brief, professional follow-up email for ' + followup.company + ' ' + followup.title + ' position.\\n' +\n      'This is a Day 3 check-in - it has been 3 days since applying.\\n' +\n      'Keep it under 3 sentences. Show continued interest. Reference something specific about the company.\\n' +\n      'Be friendly and professional. Not pushy.\\n' +\n      'Subject line: Following up on ' + followup.title + ' Application';\n  } else if (followup.followup_type === 'day_7') {\n    prompt =\n      'Write a follow-up email for ' + followup.company + ' ' + followup.title + ' position.\\n' +\n      'It has been 7 days since applying - no response yet.\\n' +\n      'Keep it under 4 sentences. Reiterate interest. Mention a specific skill or achievement relevant to them.\\n' +\n      'Ask if they need any additional information. Show initiative without being desperate.\\n' +\n      'Subject line: Re: ' + followup.title + ' Application - Following Up';\n  } else if (followup.followup_type === 'post_phone') {\n    prompt =\n      'Write a thank you and follow-up email after a phone screen for ' + followup.company + ' ' + followup.title + '.\\n' +\n      'Send within 24 hours of the call.\\n' +\n      'Thank them for their time. Reference ONE specific topic from the conversation.\\n' +\n      'Reaffirm your interest and ask about next steps timeline.\\n' +\n      'Subject line: Thank You - ' + followup.title + ' Phone Interview';\n  } else if (followup.followup_type === 'post_technical') {\n    prompt =\n      'Write a thank you email after a technical interview for ' + followup.company + ' ' + followup.title + '.\\n' +\n      'Send within 24 hours.\\n' +\n      'Thank the interviewer(s). Mention one interesting technical problem you enjoyed solving.\\n' +\n      'Show enthusiasm for the engineering culture. Ask about timeline for next steps.\\n' +\n      'Subject line: Thank You - Technical Interview for ' + followup.title;\n  } else if (followup.followup_type === 'day_90') {\n    prompt =\n      'Write a 90-day reconnection email to ' + followup.company + ' for ' + followup.title + '.\\n' +\n      'You applied 90 days ago. Checking in about future opportunities.\\n' +\n      'Mention that you\\'re still very interested. Reference your growth in the past 3 months.\\n' +\n      'Ask if any suitable roles have opened up. Keep it short and professional.\\n' +\n      'Subject line: Reconnecting - ' + followup.title + ' Interest';\n  } else {\n    prompt =\n      'Write a brief follow-up email to ' + followup.company + ' for ' + followup.title + ' position.\\n' +\n      'This is a ' + followup.followup_label + ' check-in.\\n' +\n      'Keep it professional, under 3 sentences.';\n  }\n\n  const emailDraft = await callOllama(prompt);\n\n  results.push({\n    company: followup.company,\n    title: followup.title,\n    followup_type: followup.followup_type,\n    followup_label: followup.followup_label,\n    due_date: followup.due_date,\n    email_draft: emailDraft\n  });\n}\n\nreturn results.map(function(r) { return { json: r }; });\n"
+      }
+    },
+    {
+      "id": "bb200005-cc22-4dd2-ee22-ff2200005555",
+      "name": "Build Digest Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Send daily digest of all follow-ups needed\nconst items = $input.all();\n\nif (items.length === 0 || (items.length === 1 && items[0].json.message)) {\n  return [{ json: { status: 'no_followups', date: new Date().toISOString().split('T')[0] } }];\n}\n\nlet emailBody = '<html><body style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; padding: 20px;\">';\nemailBody += '<h2 style=\"color: #007bff;\">Daily Follow-Up Digest - ' + new Date().toISOString().split('T')[0] + '</h2>';\nemailBody += '<p>You have <strong>' + items.length + '</strong> follow-up(s) scheduled for today:</p>';\n\nfor (const item of items) {\n  const d = item.json;\n  emailBody +=\n    '<div style=\"border: 1px solid #dee2e6; border-radius: 5px; padding: 15px; margin-bottom: 15px;\">' +\n    '<h3 style=\"color: #495057; margin-top: 0;\">' + d.company + ' - ' + d.title + '</h3>' +\n    '<p><strong>Type:</strong> ' + d.followup_label + ' | <strong>Due:</strong> ' + d.due_date + '</p>' +\n    '<h4>Suggested Email:</h4>' +\n    '<pre style=\"background: #f8f9fa; padding: 15px; border-radius: 5px; white-space: pre-wrap;\">' + (d.email_draft || 'No draft generated') + '</pre>' +\n    '</div>';\n}\n\nemailBody += '<p style=\"color: #6c757d; font-size: 0.9em;\">Auto-generated by Job Search N8N Automation</p>';\nemailBody += '</body></html>';\n\nreturn [{ json: { email_html: emailBody, followup_count: items.length, date: new Date().toISOString().split('T')[0] } }];\n"
+      }
+    },
+    {
+      "id": "bb200006-cc22-4dd2-ee22-ff2200006666",
+      "name": "Send Follow-Up Digest",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1700,
+        200
+      ],
+      "parameters": {
+        "fromEmail": "odeliya.charitonova.dev@gmail.com",
+        "toEmail": "odeliya.charitonova.dev@gmail.com",
+        "subject": "=Daily Follow-Up Digest: {{ $json.followup_count }} action(s) needed - {{ $json.date }}",
+        "emailFormat": "html",
+        "html": "={{ $json.email_html }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "bb200007-cc22-4dd2-ee22-ff2200007777",
+      "name": "No Action Needed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        450
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "bb200008-cc22-4dd2-ee22-ff2200008888",
+      "name": "Post-Phone Screen (24h)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        600
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "bb200009-cc22-4dd2-ee22-ff2200009999",
+      "name": "Check Post-Interview Follow-Ups",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Check for post-phone and post-technical follow-ups (24h after interview)\nconst githubToken = process.env.GITHUB_TOKEN || '';\nconst today = new Date().toISOString().split('T')[0];\nconst yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];\n\n// Look for email logs from yesterday with interview type\nif (!githubToken) {\n  return [{ json: { post_interview_followups: [], info: 'No token' } }];\n}\n\nconst owner = 'odeliyach';\nconst repo = 'job-search-data';\nconst headers = {\n  'Authorization': 'token ' + githubToken,\n  'Accept': 'application/vnd.github.v3+json'\n};\n\nconst followups = [];\n\ntry {\n  // Check email log for yesterday's interview invites\n  const logPath = 'Obsidian_Vault/Email_Log/' + yesterday + '-interview_invite.md';\n  try {\n    const fileResp = await $helpers.httpRequest({\n      method: 'GET',\n      url: 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + logPath,\n      headers: headers\n    });\n    const content = Buffer.from(fileResp.content, 'base64').toString('utf-8');\n    const fromMatch = content.match(/From: ([^\\n]+)/);\n    const company = fromMatch ? fromMatch[1] : 'Unknown Company';\n    followups.push({\n      company: company,\n      title: 'Position',\n      followup_type: 'post_phone',\n      followup_label: 'Post-Phone Screen (24h Thank You)',\n      due_date: today\n    });\n  } catch (e) { /* No interview email yesterday */ }\n\n  return [{ json: { post_interview_followups: followups, checked_date: today } }];\n} catch (e) {\n  return [{ json: { post_interview_followups: [], error: e.message } }];\n}\n"
+      }
+    },
+    {
+      "id": "bb200010-cc22-4dd2-ee22-ff2200010010",
+      "name": "Generate Post-Interview Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const data = $input.item.json;\nconst followups = data.post_interview_followups || [];\n\nif (followups.length === 0) {\n  return [{ json: { message: 'No post-interview follow-ups today' } }];\n}\n\nasync function callOllama(prompt) {\n  try {\n    const resp = await $helpers.httpRequest({\n      method: 'POST',\n      url: 'http://ollama:11434/api/generate',\n      headers: { 'Content-Type': 'application/json' },\n      body: { model: 'llama3.2', prompt: prompt, stream: false }\n    });\n    return resp && resp.response ? resp.response : '[No response]';\n  } catch (e) {\n    return '[Error: ' + e.message + ']';\n  }\n}\n\nconst results = [];\nfor (const f of followups) {\n  const prompt =\n    'Write a professional thank-you follow-up email 24 hours after a phone screen with ' + f.company + '.\\n' +\n    'Keep it to 3-4 sentences. Thank them, reference the conversation, ask about next steps timeline.\\n' +\n    'Be enthusiastic but not desperate. Professional tone.';\n  const draft = await callOllama(prompt);\n  results.push({ json: { ...f, email_draft: draft } });\n}\nreturn results;\n"
+      }
+    },
+    {
+      "id": "bb200011-cc22-4dd2-ee22-ff2200011011",
+      "name": "Send Post-Interview Follow-Up",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        600
+      ],
+      "parameters": {
+        "fromEmail": "odeliya.charitonova.dev@gmail.com",
+        "toEmail": "odeliya.charitonova.dev@gmail.com",
+        "subject": "=Post-Interview Follow-Up Ready: {{ $json.company }} - {{ $json.followup_label }}",
+        "emailFormat": "html",
+        "html": "=<html><body style=\"font-family: Arial, sans-serif; padding: 20px;\"><h2>Post-Interview Follow-Up</h2><p><strong>Company:</strong> {{ $json.company }}</p><p><strong>Type:</strong> {{ $json.followup_label }}</p><h3>Draft Email:</h3><pre style=\"background:#f8f9fa;padding:15px;border-radius:5px;white-space:pre-wrap;\">{{ $json.email_draft }}</pre></body></html>",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Daily 9 AM Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check Follow-Up Schedule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Follow-Up Schedule": {
+      "main": [
+        [
+          {
+            "node": "Any Follow-Ups Today?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Follow-Ups Today?": {
+      "main": [
+        [
+          {
+            "node": "Generate Follow-Up Emails",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Action Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Follow-Up Emails": {
+      "main": [
+        [
+          {
+            "node": "Build Digest Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Digest Email": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-Up Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post-Phone Screen (24h)": {
+      "main": [
+        [
+          {
+            "node": "Check Post-Interview Follow-Ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Post-Interview Follow-Ups": {
+      "main": [
+        [
+          {
+            "node": "Generate Post-Interview Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Post-Interview Email": {
+      "main": [
+        [
+          {
+            "node": "Send Post-Interview Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
