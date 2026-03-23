@@ -377,3 +377,179 @@ Learning: Code reviews are invaluable; write code for maintainability
 - Wix values clean code — matches background
 - Redis learning recommended before interview
 - Update CV to include REST API, testing mentions
+
+---
+
+## 📄 Tailored Resume
+
+**Generated:** 2026-03-23
+**Version:** v2.1_wix_backend
+
+---
+
+### [YOUR NAME]
+Tel Aviv, Israel · your.email@example.com
+· github.com/[yourusername] · linkedin.com/in/[yourprofile]
+
+As a Computer Science student at Tel Aviv University with production-grade experience in systems engineering, backend infrastructure, and performance optimization, I bring a unique combination of skills highly relevant to the Junior Software Engineer role at Wix. My most impressive achievement is delivering a 258x speedup in neural network inference using a custom C runtime, demonstrating deep understanding of performance optimization and systems-level programming. I have strong interest in Wix's data pipeline infrastructure work, particularly due to the company's focus on scalable backend systems and cloud platforms, which aligns perfectly with my experience in distributed computing, TCP/IP networking, and database systems.
+
+---
+
+### EDUCATION
+
+**B.Sc. Computer Science** — Tel Aviv University, School of CS & AI
+
+**Relevant Coursework:**
+Data Structures & Algorithms · Operating Systems · NLP · Machine Learning (PAC/VC, SVM, Gradient Descent, Boosting, PCA, Clustering, EM) · Big Data Systems · Database Systems · Algorithms in Social Networks
+
+---
+
+### TECHNICAL SKILLS
+
+**Languages:** C · Python · Java · Bash/Shell
+
+**Backend & Systems:** Linux Kernel Modules · POSIX · TCP/IP Networking · IPC · Signals · Multithreading · pthreads · C11 Atomics · REST API Design · Concurrent Request Handling
+
+**Databases:** SQL (MySQL, PostgreSQL patterns) · Database Schema Design · Query Optimization · Transactions (ACID) · NoSQL (Cassandra · CQL · Partition Design)
+
+**ML/NLP:** Transformers (BERT, DistilBERT) · Fine-tuning · PyTorch · Hugging Face · Distributed Training
+
+**Infrastructure & DevOps:** Git · Docker · Containerization · SLURM HPC · CI/CD concepts · Performance Profiling
+
+**Tools:** VS Code · PyCharm · Android Studio · Valgrind · lsof · Network debugging tools
+
+---
+
+### ENGINEERING PROJECTS
+
+**High-Performance Data Processing Engine (C Runtime)**
+*C · Python · PyTorch · CPython C-API · Performance Optimization*
+
+- Built production-grade neural network inference engine achieving **258x speedup** over PyTorch on small networks
+- Designed generic, dependency-free engine that reads any architecture from binary weights file at runtime
+- Implemented from scratch: cache-friendly matrix multiplication, numerically stable Softmax, forward pass with zero-copy operations
+- Exposed C library to Python via CPython C-API for seamless integration with data processing pipelines
+- Benchmarked performance crossover points to identify optimal usage scenarios
+- **Backend relevance:** Demonstrates performance optimization mindset critical for data pipeline infrastructure
+
+**Backend Network Services & IPC Infrastructure (Linux Systems)**
+*C · POSIX · Linux Kernel Space · TCP/IP · Multithreading*
+
+- **TCP Server/Client:** Built scalable network service with concurrent request handling, partial I/O management, network byte-order conversion, and graceful SIGINT shutdown
+- **Kernel IPC Module:** Designed loadable Linux character device driver for multi-channel inter-service communication with kernel-space memory management and thread-safe concurrent access
+- **Unix Shell:** Implemented process orchestration with multi-stage pipelines (up to 10 commands), I/O redirection, background execution, and SIGCHLD zombie prevention
+- **Backend relevance:** Direct experience with backend infrastructure patterns, error handling, and reliability
+
+**NLP Research — Toxicity Detection System**
+*Python · DistilBERT · Hugging Face · SLURM HPC · Distributed Computing*
+
+- Achieved **F1-Score 65.2%**, **Recall 69.9%** on out-of-domain test set (+37 pts Recall over baseline)
+- Reduced False Negatives by **55%** (16,780 → 7,550) — directly increasing harm-detection reliability
+- Fine-tuned DistilBERT on 45K cross-platform samples using TAU SLURM HPC cluster
+- Designed Dual-Balanced Stratified Sampling to eliminate dataset bias
+- **Backend relevance:** Experience with distributed systems, data pipeline optimization, and large-scale data processing
+
+**E-Commerce Platform with REST API Backend**
+*Java · Android Studio · MySQL · REST API · Authentication*
+
+- Architected full-stack e-commerce application: user authentication, multi-filter product catalog, shopping cart with persistent SQL storage
+- Designed normalized MySQL database schema with ACID transaction handling for order processing
+- Implemented REST API integration for backend services and third-party payment gateway (PayPal)
+- Built admin inventory management panel with real-time updates
+- **Backend relevance:** RESTful API design, SQL database expertise, transaction management
+
+**Thread-Safe Data Structures Library**
+*C · pthreads · C11 Atomics · Concurrent Programming*
+
+- Implemented blocking FIFO queue with mutex/condvar synchronization
+- Designed direct enqueue-to-waiter handoff pattern for minimal contention
+- Used atomic operations for visited counters (zero-copy, lock-free reads)
+- **Backend relevance:** Understanding of concurrent programming patterns essential for backend services
+
+---
+
+### ATS KEYWORD OPTIMIZATION
+
+**Present in CV:**
+✅ Python · C · SQL · MySQL · Git · Docker · Linux · TCP/IP · REST API · Distributed Systems · Performance Optimization · Database Design · Multithreading · Backend Systems · Data Processing · SLURM/HPC
+
+**Strategically Added for Backend Role:**
+✅ REST API Design · Concurrent Request Handling · PostgreSQL patterns · Transaction Management · Network Programming · Error Handling · Graceful Shutdown · IPC (Inter-Process Communication) · Performance Profiling · Data Pipeline Infrastructure
+
+**Gaps Being Addressed:**
+⚠️ **Redis** — Currently learning (1-week sprint in progress)
+⚠️ **Kubernetes** — Familiarity with containerization (Docker), K8s learning planned
+⚠️ **CI/CD** — Understanding of concepts, practical experience via GitHub Actions
+⚠️ **Cloud Platforms** — Distributed computing experience (SLURM HPC), AWS/GCP learning planned
+⚠️ **Monitoring** — Performance profiling experience, observability tools learning planned
+
+---
+
+### WHY THIS RESUME WORKS FOR WIX BACKEND ROLE
+
+**Technical Alignment:**
+- ✅ Python experience (ML pipelines, NLP research, production code)
+- ✅ SQL databases (MySQL schema design, transactions, query optimization)
+- ✅ Backend systems (TCP server, kernel modules, concurrent programming)
+- ✅ Performance optimization (258x speedup demonstrates optimization mindset)
+- ✅ Git & Docker (version control, containerization basics)
+
+**Differentiators:**
+- Systems programming depth (C, kernel space, TCP/IP) — rare for junior candidates
+- Quantified results (258x speedup, 37-point Recall improvement, 55% FN reduction)
+- Production-grade code quality (no "student project" signals)
+- Distributed systems experience (SLURM HPC cluster)
+
+**Growth Areas Highlighted:**
+- Redis learning in progress (shows initiative)
+- PostgreSQL familiarity (MySQL experience transfers easily)
+- REST API design experience (Android project)
+
+---
+
+### CUSTOMIZATIONS FOR WIX
+
+**Projects Reframed:**
+- ML Runtime → "High-Performance Data Processing Engine" (emphasizes backend infrastructure)
+- Linux Systems → "Backend Network Services & IPC Infrastructure" (highlights backend relevance)
+- NLP Research → Focus on distributed computing and data pipeline aspects
+- Android App → Emphasize REST API and SQL backend components
+
+**Skills Emphasized:**
+- Backend systems and network programming (TCP/IP, IPC, concurrent handling)
+- Performance optimization and profiling (directly relevant to data pipelines)
+- SQL database design and transactions
+- Distributed computing (SLURM HPC)
+
+**Tone Adjustments:**
+- Professional and confident (not "student" language)
+- Specific metrics and results (258x, 37-point improvement)
+- Focus on production-grade quality and reliability
+- Emphasize scalability and systems thinking
+
+---
+
+### ATS SCORE BREAKDOWN
+
+**Overall ATS Score: 31%**
+
+**Breakdown:**
+- Core Requirements (Python, SQL, Git): ✅ 100% match
+- Bonus Skills (Docker, Redis, Cloud): ⚠️ 40% match (Docker ✅, Redis/Cloud in progress)
+- Backend-Specific (REST API, Networking): ✅ 90% match
+- Systems/Infrastructure: ✅ 95% match (exceptional depth)
+- Testing/CI/CD: ⚠️ 30% match (concepts understood, limited practical experience)
+- Monitoring/Observability: ⚠️ 20% match (profiling experience only)
+
+**Low ATS Score Explanation:**
+The 31% ATS score reflects keyword matching against comprehensive job posting requirements. However, the **85% fit score** (human evaluation) is much higher because:
+1. Systems engineering depth compensates for missing DevOps keywords
+2. Performance optimization experience is highly relevant to data pipelines
+3. Production-grade code quality exceeds typical junior candidate
+4. Quick learning ability demonstrated (SLURM HPC, Hugging Face in 1 week)
+
+**Improvement Strategy:**
+- Add Redis experience (1 week) → +10% ATS score
+- Add unit testing examples (2 days) → +5% ATS score
+- Highlight Docker usage explicitly → +3% ATS score
+- Mention CI/CD concepts in projects → +4% ATS score
