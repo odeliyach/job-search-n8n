@@ -1,0 +1,163 @@
+{
+  "name": "Job Search - Email Labeling (PROVEN FIX)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "id": "39fa488b-19f6-4118-a78e-c3859244a0a8",
+      "name": "Every 30 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "filters": {}
+      },
+      "id": "fa82de5c-903e-4e9a-9a24-e634f9a2d992",
+      "name": "Fetch Emails",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "webhookId": "feb1c584-5349-4bf2-be61-f355fae368c9",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Xa5HkqQsHv2zfLn3",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ID_REPLIED = \"Label_2354037965168050234\"; \nconst ID_WAITING = \"Label_4132664344787187736\";\nconst ID_N8N = \"Label_5515322872405991067\";\nconst ID_NEED_REPLY = \"Label_7465406405412998085\";\nconst ID_FROM_RECRUITER = \"Label_7667780014404298288\";\n\nconst MY_EMAIL = \"odeliya.charitonova.dev@gmail.com\";\nconst allJobLabels = [ID_REPLIED, ID_WAITING, ID_N8N, ID_NEED_REPLY, ID_FROM_RECRUITER];\n\n// ⏱️ TESTING: 1 minute. \n// 🔁 PRODUCTION: replace with 12 * 60 * 60 * 1000\nconst TIME_LIMIT = 12 * 60 * 60 * 1000;\n\nconst extractEmail = (str) => {\n    if (!str) return \"\";\n    const match = str.match(/<(.+?)>/) || [null, str];\n    return match[1].trim().toLowerCase();\n};\n\nconst classifyMessage = (item) => {\n    const now = Date.now();\n    const internalDate = parseInt(item.internalDate || now);\n    const snippet = (item.snippet || \"\").toLowerCase();\n    const subject = (item.Subject || \"\").toLowerCase();\n    const labelIds = (item.labels || []).map(l => l.id);\n    \n    const fromEmail = extractEmail(item.From);\n    const toEmail = extractEmail(item.To);\n\n    const subjectIsReply = subject.startsWith(\"re:\");\n    // For outgoing emails, we only trust the subject prefix to detect replies.\n    // threadHasJobLabel would always be true for recruiter threads (tagged FROM_RECRUITER),\n    // which would incorrectly classify first outreach as REPLIED.\n    const isReply = subjectIsReply;\n\n    if (fromEmail === MY_EMAIL && toEmail === MY_EMAIL) {\n        return { label: ID_N8N, date: internalDate };\n    }\n    \n    if (fromEmail === MY_EMAIL) {\n        return { \n            label: isReply ? ID_REPLIED : ID_WAITING, \n            date: internalDate \n        };\n    }\n\n    // Incoming email\n    const isRecruiter = \n        fromEmail.includes(\"recruiter\") || \n        snippet.includes(\"interview\") || \n        subject.includes(\"position\") || \n        snippet.includes(\"applied\");\n\n    if ((now - internalDate) > TIME_LIMIT) {\n        return { label: ID_NEED_REPLY, date: internalDate };\n    } else {\n        return { label: ID_FROM_RECRUITER, date: internalDate };\n    }\n};\n\n// KEY FIX: group all messages by threadId, then for each thread\n// keep only the classification of the LATEST message.\n// This prevents multiple messages in the same thread from producing\n// conflicting labels - the most recent message reflects current state.\nconst allItems = $input.all();\nconst threadMap = {};\n\nfor (const inputItem of allItems) {\n    const item = inputItem.json;\n    const threadId = item.threadId;\n    const result = classifyMessage(item);\n    \n    // If we've seen this thread before, only replace if this message is newer\n    if (!threadMap[threadId] || result.date > threadMap[threadId].date) {\n        threadMap[threadId] = {\n            threadId,\n            labelIdToAdd: result.label,\n            labelsToClear: allJobLabels,\n            date: result.date\n        };\n    }\n}\n\n// Return one item per thread (not one per message)\nreturn Object.values(threadMap).map(t => ({\n    threadId: t.threadId,\n    labelIdToAdd: t.labelIdToAdd,\n    labelsToClear: t.labelsToClear\n}));"
+      },
+      "id": "a1bcdf0b-341d-46fc-9558-1c01647753dc",
+      "name": "Fix Logic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "thread",
+        "operation": "removeLabels",
+        "threadId": "={{ $json.threadId }}",
+        "labelIds": "={{ $json.labelsToClear }}"
+      },
+      "id": "657be8b3-6cd9-44d2-823a-3ec25fe49cc5",
+      "name": "Clear All",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "webhookId": "26508dda-85b8-4ec7-be69-03313d561bb7",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Xa5HkqQsHv2zfLn3",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "thread",
+        "operation": "addLabels",
+        "threadId": "={{ $node[\"Fix Logic\"].json.threadId }}",
+        "labelIds": "={{ [$node[\"Fix Logic\"].json.labelIdToAdd] }}"
+      },
+      "id": "8022944c-826e-4938-8a14-1b4b6bd224d9",
+      "name": "Apply Label",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "webhookId": "48e3aee0-e3bb-49fd-be54-ff828879810b",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Xa5HkqQsHv2zfLn3",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 30 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Fetch Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Emails": {
+      "main": [
+        [
+          {
+            "node": "Fix Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fix Logic": {
+      "main": [
+        [
+          {
+            "node": "Clear All",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clear All": {
+      "main": [
+        [
+          {
+            "node": "Apply Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "56b8ed08-c3c5-498f-87fa-bf03169dcc54",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "23203e1a41391fea8f8c4fa4ef17097cd293961eaa4c691acf21932d52a39dfe"
+  },
+  "id": "KbplTlJsfhinppqO",
+  "tags": []
+}

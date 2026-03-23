@@ -1,0 +1,81 @@
+{
+  "name": "Get Label IDs - Run Once",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": [],
+  "nodes": [
+    {
+      "id": "h001",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "h002",
+      "name": "Fetch Label IDs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        450,
+        300
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "gmail-cred-1",
+          "name": "Gmail OAuth2 - Job Search"
+        }
+      },
+      "parameters": {
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/labels",
+        "authentication": "oAuth2",
+        "options": {}
+      }
+    },
+    {
+      "id": "h003",
+      "name": "Show Custom Labels Only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resp = $input.first().json;\nconst labels = resp.labels || [];\n// Only show user-created labels (not system ones like INBOX, UNREAD)\nconst custom = labels.filter(l => l.type === 'user');\nreturn custom.map(l => ({ json: { name: l.name, id: l.id } }));\n"
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Label IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Label IDs": {
+      "main": [
+        [
+          {
+            "node": "Show Custom Labels Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
