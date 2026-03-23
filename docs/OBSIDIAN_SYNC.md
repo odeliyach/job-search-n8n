@@ -56,13 +56,14 @@ odeliyach/job-search-data/
 ## Source of Truth: Application Files
 - Each `Job_Applications/[Status]/[Company].md` file carries frontmatter:
   ```
-  company, position, link, date_sent, stage, resume_version,
-  referral, salary_range, contact, notes
+  company, role, job_link, applied_date/date_sent, status, stage,
+  resume_version, referral, salary_range_min, salary_range_max,
+  currency, location, company_industry, contact, notes, tags
   ```
 - **Stage values (pipeline view):** Applied → HR → OA → Technical Interview → Final → Offer / Rejected.  
 - **Status (folder move):** `applied`, `phone_screen_scheduled`, `technical_scheduled`, `offer_received`, `rejected`.
-- **Auto-filled by N8N:** company, position, date_sent, follow-up dates.  
-- **Manual as things evolve:** stage, resume_version, referral, contact, notes.
+- **Auto-filled by N8N:** company, role, job_link, applied_date, follow-up dates.  
+- **Manual as things evolve:** stage, resume_version, referral, contact, notes, salary ranges, tags.
 
 ---
 

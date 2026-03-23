@@ -1,12 +1,18 @@
 ---
 company: "NovaGrid Labs"
-position: "Full-Stack Developer"
-link: "https://careers.novagrid.example/jobs/full-stack-developer"
-date_sent: 2026-03-10
+role: "Full-Stack Developer"
+job_link: "https://careers.novagrid.example/jobs/full-stack-developer"
+applied_date: 2026-03-10
+status: "applied"
 stage: "Applied"
 resume_version: "NovaGrid_v1"
 referral: "None"
-salary_range: "₪28,000 - ₪32,000"
+salary_range_min: 28000
+salary_range_max: 32000
+currency: "ILS"
+location: "Tel Aviv, Israel"
+company_industry: "Observability SaaS"
+tags: ["observability","node","react","graphql","typescript"]
 contact: "Maya Levin <maya.levin@novagrid.example>"
 notes: "Submitted via the careers portal; follow-up in 3 days."
 ---
