@@ -1,318 +1,1803 @@
 {
   "name": "Job Search Automation - All Tiers (Parallel)",
-  "active": false,
-  "settings": {
-    "executionOrder": "v1"
-  },
-  "pinData": {},
-  "tags": [],
-  "meta": {
-    "templateCredsSetupCompleted": true
-  },
   "nodes": [
     {
-      "id": "a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5",
-      "name": "Start Job Application",
-      "type": "n8n-nodes-base.manualTrigger",
-      "typeVersion": 1,
-      "position": [
-        200,
-        300
-      ],
-      "parameters": {}
-    },
-    {
-      "id": "b2c3d4e5-f6a7-4b8c-9d0e-f1a2b3c4d5e6",
-      "name": "Set Job Details",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3,
-      "position": [
-        500,
-        300
-      ],
       "parameters": {
-        "assignments": {
-          "assignments": [
+        "path": "c2f28b91-b9e3-4360-8fdd-4539758f196b",
+        "formTitle": "Job Search Automation",
+        "formFields": {
+          "values": [
             {
-              "id": "assign-01",
-              "name": "job_url",
-              "value": "",
-              "type": "string"
+              "fieldLabel": "Job Description",
+              "fieldType": "textarea",
+              "requiredField": true
             },
             {
-              "id": "assign-02",
-              "name": "job_description",
-              "value": "Enter full job description here",
-              "type": "string"
+              "fieldLabel": "Job URL (optional)"
             },
             {
-              "id": "assign-03",
-              "name": "company_name",
-              "value": "Company Name",
-              "type": "string"
-            },
-            {
-              "id": "assign-04",
-              "name": "job_title",
-              "value": "Job Title",
-              "type": "string"
-            },
-            {
-              "id": "assign-05",
-              "name": "location",
-              "value": "",
-              "type": "string"
-            },
-            {
-              "id": "assign-06",
-              "name": "user_skills",
-              "value": "",
-              "type": "string"
-            },
-            {
-              "id": "assign-07",
-              "name": "tech_stack",
-              "value": "React, Node.js, TypeScript, PostgreSQL",
-              "type": "string"
-            },
-            {
-              "id": "assign-08",
-              "name": "job_requirements",
-              "value": "",
-              "type": "string"
+              "fieldLabel": "Skills Override (optional)",
+              "fieldType": "textarea"
             }
           ]
+        },
+        "options": {}
+      },
+      "id": "20e684bd-5910-4312-8cea-f9159da778f3",
+      "name": "Job Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2,
+      "position": [
+        -1504,
+        512
+      ],
+      "webhookId": "c2f28b91-b9e3-4360-8fdd-4539758f196b"
+    },
+    {
+      "parameters": {
+        "url": "https://api.github.com/repos/odeliyach/job-search-data/contents/cv.md",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3.raw"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-job-search"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "172d2c2c-afd6-4508-bce7-02c4d7c90c5e",
+      "name": "Fetch CV from GitHub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -896,
+        512
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nriQcBdVr3dXV5me",
+          "name": "Header Auth account"
         }
       }
     },
     {
-      "id": "c3d4e5f6-a7b8-4c9d-0e1f-a2b3c4d5e6f7",
-      "name": "Parse Job Info",
+      "parameters": {
+        "jsCode": "const jobDesc = $('Job Input').first().json.job_description_raw || '';\nconst _prompt = 'Extract structured job information from this job description. Return ONLY a valid JSON object with these exact keys: company_name, job_title, location, job_requirements, tech_stack, job_description_clean. Keep values concise.\\n\\nJob Description:\\n' + jobDesc;\nreturn [{ json: {\n  prompt: _prompt,\n  body: JSON.stringify({\n    model: 'llama-3.1-8b-instant',\n    messages: [{ role: 'user', content: _prompt }],\n    temperature: 0.7,\n    max_tokens: 2048\n  })\n} }];"
+      },
+      "id": "b90d1f47-2a24-481c-b46d-154d4eecd296",
+      "name": "Extract Job Fields Prepare",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        800,
-        300
-      ],
+        -752,
+        512
+      ]
+    },
+    {
       "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "const item = $input.first().json;\nconst companyName = item.company_name || '';\nconst jobTitle = item.job_title || '';\nconst location = item.location || '';\nconst jobUrl = item.job_url || '';\nconst jobDescription = item.job_description || '';\nconst userSkills = item.user_skills || '';\nconst techStack = item.tech_stack || '';\nconst jobRequirements = item.job_requirements || '';\n\nconst id = 'app-' + Date.now() + '-' + Math.random().toString(36).substring(2, 11);\n\nconst now = new Date();\nconst year = now.getFullYear().toString();\nconst month = String(now.getMonth() + 1).padStart(2, '0');\nconst day = String(now.getDate()).padStart(2, '0');\nconst appliedDate = year + '-' + month + '-' + day;\n\nconst folderName = day + '_' + companyName.replace(/[^a-zA-Z0-9]/g, '_') + '_' + jobTitle.replace(/[^a-zA-Z0-9]/g, '_');\n\nreturn [{\n  json: {\n    application_id: id,\n    company_name: companyName,\n    job_title: jobTitle,\n    location: location,\n    job_url: jobUrl,\n    job_description: jobDescription,\n    user_skills: userSkills,\n    tech_stack: techStack,\n    job_requirements: jobRequirements,\n    applied_date: appliedDate,\n    year: year,\n    month: month,\n    day: day,\n    folder_name: folderName\n  }\n}];\n"
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('Extract Job Fields Prepare').first().json.body }}",
+        "options": {}
+      },
+      "id": "1c73fd8f-9710-48e3-ae33-6819397569bf",
+      "name": "Extract Job Fields",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -608,
+        512
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EV5TtLlrpZapy6WQ",
+          "name": "Header Auth account 2"
+        }
       }
     },
     {
-      "id": "d4e5f6a7-b8c9-4d0e-1f2a-b3c4d5e6f7a8",
+      "parameters": {
+        "jsCode": "// WHY: Parse Groq's JSON response and merge with CV + metadata\nconst groqResponse = $input.first().json;\nconst content = groqResponse.choices[0].message.content;\n\n// WHY: Strip markdown code fences if Groq wraps JSON in ```json blocks\nconst clean = content.replace(/```json/g, '').replace(/```/g, '').trim();\n\nlet extracted = {};\ntry {\n  extracted = JSON.parse(clean);\n} catch(e) {\n  // Fallback if JSON parse fails\n  extracted = {\n    company_name: 'Unknown Company',\n    job_title: 'Unknown Title',\n    location: '',\n    job_requirements: '',\n    tech_stack: '',\n    job_description_clean: $('Job Input').item.json.job_description_raw\n  };\n}\n\n// Get CV text from previous node\nconst cvText = $('Fetch CV from GitHub').item.json.data || \n               $('Fetch CV from GitHub').item.json || '';\n\nconst cvString = typeof cvText === 'string' ? cvText : JSON.stringify(cvText);\n\n// Skills override - if user typed something in Job Input, use that; else use CV\nconst skillsOverride = $('Job Input').item.json.skills_override || '';\n\n// Generate application ID and date metadata\nconst id = 'app-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);\nconst now = new Date();\nconst year = now.getFullYear().toString();\nconst month = String(now.getMonth() + 1).padStart(2, '0');\nconst day = String(now.getDate()).padStart(2, '0');\nconst appliedDate = year + '-' + month + '-' + day;\n\nconst companyName = extracted.company_name || 'Unknown';\nconst jobTitle = extracted.job_title || 'Unknown';\n\n// WHY: Folder name used for GitHub commit path structure\nconst folderName = day + '_' + \n  companyName.replace(/[^a-zA-Z0-9]/g, '_') + '_' + \n  jobTitle.replace(/[^a-zA-Z0-9]/g, '_');\n\nreturn [{\n  json: {\n    application_id: id,\n    company_name: companyName,\n    job_title: jobTitle,\n    location: extracted.location || '',\n    job_url: $('Job Input').item.json.job_url || '',\n    job_description: extracted.job_description_clean || $('Job Input').item.json.job_description_raw,\n    job_requirements: extracted.job_requirements || '',\n    tech_stack: extracted.tech_stack || '',\n    user_skills: skillsOverride || cvString,\n    cv_text: cvString,\n    applied_date: appliedDate,\n    year: year,\n    month: month,\n    day: day,\n    folder_name: folderName\n  }\n}];\n"
+      },
+      "id": "4ba79bf1-f82f-4750-abdc-452bbb43bbf3",
+      "name": "Parse Job Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Parse Job Fields').first().json;\nconst cv = (d.cv_text || '').substring(0, 800);\nconst _prompt = 'You are a Senior Software Architect with 15+ years in Israeli high-tech.\\n\\nAnalyze this CV against the job:\\n1. First impression: strong hire / promising with gaps / needs work\\n2. For each project: WHY that choice, what problem solved, trade-offs\\n3. Brutal truth: junior vs senior signals\\n4. Before/After reframing for each project\\n5. ATS keywords missing vs present\\n6. Gap analysis for Israeli market 2026\\n7. Priority improvements\\n\\nCompany: ' + d.company_name + '\\nJob: ' + d.job_title + '\\nRequirements: ' + d.job_requirements + '\\n\\nCV:\\n' + cv;\nreturn [{ json: {\n  prompt: _prompt,\n  body: JSON.stringify({\n    model: 'llama-3.1-8b-instant',\n    messages: [{ role: 'user', content: _prompt }],\n    temperature: 0.7,\n    max_tokens: 2048\n  })\n} }];"
+      },
+      "id": "dfd46a2e-314d-4ea1-8b52-d2bd39ea6a44",
+      "name": "T1 Resume Analysis Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('T1 Resume Analysis Prepare').first().json.body }}",
+        "options": {}
+      },
+      "id": "683c7076-bba4-421f-a099-ffb187d7b6ce",
+      "name": "T1 Resume Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        208,
+        208
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EV5TtLlrpZapy6WQ",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Parse Job Fields').first().json;\nconst cv = (d.cv_text || '').substring(0, 800);\nconst _prompt = 'Write a cover letter. Structure: Hook->Bridge->Proof->Close. Annotate each section.\\n\\nCompany: ' + d.company_name + '\\nJob: ' + d.job_title + '\\nRequirements: ' + d.job_requirements + '\\n\\nCV:\\n' + cv;\nreturn [{ json: {\n  prompt: _prompt,\n  body: JSON.stringify({\n    model: 'llama-3.1-8b-instant',\n    messages: [{ role: 'user', content: _prompt }],\n    temperature: 0.7,\n    max_tokens: 2048\n  })\n} }];"
+      },
+      "id": "473ba851-c1d1-439d-9645-e40aa11f4322",
+      "name": "T1 Cover Letter Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('T1 Cover Letter Prepare').first().json.body }}",
+        "options": {}
+      },
+      "id": "e33d6c11-1687-490d-ab9b-97f94e66fe6c",
+      "name": "T1 Cover Letter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        208,
+        112
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EV5TtLlrpZapy6WQ",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Parse Job Fields').first().json;\nconst cv = (d.cv_text || '').substring(0, 800);\nconst _prompt = 'You must respond with ONLY a raw JSON object, no explanation, no markdown, no text before or after. The JSON must have exactly these keys: overall_score (integer 0-100), technical_match (integer 0-100), experience_match (integer 0-100), top_strengths (array of exactly 3 strings), critical_gaps (array of exactly 3 strings), recommendation (string). Example format: {\"overall_score\":75,\"technical_match\":80,\"experience_match\":70,\"top_strengths\":[\"a\",\"b\",\"c\"],\"critical_gaps\":[\"x\",\"y\",\"z\"],\"recommendation\":\"text\"}. Now calculate job fit for:\\n\\nRequirements: ' + d.job_requirements + '\\nTech: ' + d.tech_stack + '\\n\\nCV:\\n' + cv;\nreturn [{ json: {\n  prompt: _prompt,\n  body: JSON.stringify({\n    model: 'llama-3.1-8b-instant',\n    messages: [{ role: 'system', content: 'You are a JSON-only API. You never output anything except raw JSON. No markdown, no explanation.' }, { role: 'user', content: _prompt }],\n    temperature: 0.7,\n    max_tokens: 2048\n  })\n} }];"
+      },
+      "id": "79daef5d-bb94-4134-b87a-88f7596bf24a",
+      "name": "T1 Job Fit Score Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('T1 Job Fit Score Prepare').first().json.body }}",
+        "options": {}
+      },
+      "id": "f6b70a5e-15f3-4f20-a4f7-f2159360614b",
+      "name": "T1 Job Fit Score",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        208,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EV5TtLlrpZapy6WQ",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobData = $('Parse Job Fields').first().json;\nconst safe = (val) => (val == null ? '' : String(val));\n\n// WHY: T1 runs sequentially. Read each result by node name.\n// $input only has the last node's output (T1 Job Fit Score).\nconst resume = $('T1 Resume Analysis').first().json?.choices?.[0]?.message?.content || '[Resume analysis failed]';\nconst coverLetter = $('T1 Cover Letter').first().json?.choices?.[0]?.message?.content || '[Cover letter failed]';\nconst fitRaw = $('T1 Job Fit Score').first().json?.choices?.[0]?.message?.content || '{}';\n\nlet fitScore = {};\ntry {\n  const cleanFit = fitRaw.replace(/```json/g, '').replace(/```/g, '').trim();\n  fitScore = JSON.parse(cleanFit);\n} catch(e) {\n  fitScore = { overall_score: 0, recommendation: 'Score parsing failed' };\n}\n\nconst metadataContent = \n  '# Application: ' + safe(jobData.company_name) + ' - ' + safe(jobData.job_title) + '\\n\\n' +\n  '- Company: ' + safe(jobData.company_name) + '\\n' +\n  '- Title: ' + safe(jobData.job_title) + '\\n' +\n  '- Location: ' + safe(jobData.location) + '\\n' +\n  '- URL: ' + safe(jobData.job_url) + '\\n' +\n  '- Applied: ' + safe(jobData.applied_date) + '\\n' +\n  '- Application ID: ' + safe(jobData.application_id) + '\\n' +\n  '- **Job Fit Score: ' + (fitScore.overall_score || 0) + '%**\\n' +\n  '- Recommendation: ' + safe(fitScore.recommendation) + '\\n\\n' +\n  '## Top Strengths\\n' +\n  (fitScore.top_strengths || []).map(s => '- ' + s).join('\\n') + '\\n\\n' +\n  '## Critical Gaps\\n' +\n  (fitScore.critical_gaps || []).map(g => '- ' + g).join('\\n') + '\\n\\n' +\n  '## Job Description\\n' + safe(jobData.job_description) + '\\n\\n' +\n  '## Requirements\\n' + safe(jobData.job_requirements) + '\\n';\n\nconst resumeContent = '# Resume Analysis - ' + safe(jobData.job_title) + ' at ' + safe(jobData.company_name) + '\\n\\n' + resume;\nconst coverLetterContent = '# Cover Letter - ' + safe(jobData.company_name) + '\\n\\n' + coverLetter;\n\nreturn [{\n  json: {\n    ...jobData,\n    tier1_status: 'complete',\n    fit_score: fitScore.overall_score || 0,\n    fit_recommendation: fitScore.recommendation || '',\n    fit_strengths: fitScore.top_strengths || [],\n    fit_gaps: fitScore.critical_gaps || [],\n    resume_preview: resume.substring(0, 300),\n    metadata_content: metadataContent,\n    resume_content: resumeContent,\n    cover_letter_content: coverLetterContent\n  }\n}];"
+      },
+      "id": "77df0262-23b0-4a14-98e6-a237d6fed571",
       "name": "Tier 1 - Core Application",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1100,
-        100
-      ],
-      "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "const jobData = $input.first().json;\nconst safe = (val) => (val == null ? '' : String(val));\n\nasync function callGroq(prompt) {\n  // WHY Groq: free tier, runs llama3-8b (same family as llama3.2), fast inference\n  // WHY $env: n8n exposes env vars to code nodes via $env (not process.env)\n  // Groq uses OpenAI-compatible API so the structure is familiar\n  const groqKey = $env.GROQ_API_KEY || '';\n  if (!groqKey) return '[Error: GROQ_API_KEY not set in environment]';\n\n  for (let attempt = 1; attempt <= 3; attempt++) {\n    try {\n      const resp = await $helpers.httpRequest({\n        method: 'POST',\n        url: 'https://api.groq.com/openai/v1/chat/completions',\n        headers: {\n          'Content-Type': 'application/json',\n          'Authorization': 'Bearer ' + groqKey\n        },\n        // WHY messages array: Groq uses chat format (role/content), not raw prompt\n        body: {\n          model: 'llama3-8b-8192',\n          messages: [{ role: 'user', content: prompt }],\n          temperature: 0.7,\n          max_tokens: 2048\n        },\n      });\n      // WHY this path: Groq returns choices[0].message.content (OpenAI format)\n      return (resp && resp.choices && resp.choices[0]) \n        ? resp.choices[0].message.content \n        : '[No response]';\n    } catch (e) {\n      if (attempt === 3) return '[Groq Error: ' + e.message + ']';\n      // WHY exponential backoff: rate limits are more likely on retry, give API time to recover\n      await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));\n    }\n  }\n}\n\n// CHANGE #5: Senior Architect resume prompt (exact text, string concatenation only)\nconst resumePrompt =\n  'You are a Senior Software Architect and Technical Hiring Manager with 15+ years in the Israeli high-tech industry ' +\n  '(Google, Palo Alto Networks, Wix, SailPoint, and high-growth unicorns). ' +\n  'You have zero tolerance for messy code and \"student-style\" habits. You\\'ve reviewed thousands of CVs.\\n\\n' +\n  'Your Task - Transform Resume into Production-Grade Portfolio:\\n\\n' +\n  '1. The \"Why\" Analysis: For each project/skill, explain the PROFESSIONAL REASONING:\\n' +\n  '   - Why did I choose this specific architecture/language/library?\\n' +\n  '   - What business problem did it solve?\\n' +\n  '   - What trade-offs did I consider?\\n\\n' +\n  '2. The \\'Brutal\\' Truth Assessment:\\n' +\n  '   - First impression: Does this look like a \\'generic student\\' or a \\'high-potential engineer\\'?\\n' +\n  '   - Be direct, professional, and witty - like a mentor who wants success but won\\'t sugarcoat\\n' +\n  '   - Specific feedback on what screams \"junior\" vs. what screams \"senior\"\\n\\n' +\n  '3. Identify & Remove Fluff:\\n' +\n  '   - What sections/achievements don\\'t belong on a Senior Engineer\\'s resume?\\n' +\n  '   - What\\'s weak or generic?\\n' +\n  '   - What should stay because it\\'s impressive?\\n\\n' +\n  '4. Tech Stack Reframing (Student -> Senior):\\n' +\n  '   - Instead of: \"Built a todo app with React\"\\n' +\n  '   - Reframe as: \"Architected a real-time collaborative task management system with optimistic updates, ' +\n  'Redux state management, TypeScript strict mode, and implemented custom hooks for reusable state logic\"\\n' +\n  '   - For EACH project: provide a \"before/after\" reframing\\n\\n' +\n  '5. ATS & AI Scanner Optimization - CRITICAL:\\n' +\n  '   - This CV will be scanned by automated AI systems (like those used by Israeli tech companies)\\n' +\n  '   - Flag EVERY missing keyword that\\'s critical for the market:\\n' +\n  '     * Cloud platforms: AWS (EC2, S3, Lambda, RDS), GCP (Compute Engine, Cloud Run, Firestore), Azure\\n' +\n  '     * Containerization: Docker, Kubernetes (K8s), Helm\\n' +\n  '     * CI/CD: GitHub Actions, GitLab CI, Jenkins, CircleCI\\n' +\n  '     * Architecture: Microservices, distributed systems, system design, scalability, load balancing\\n' +\n  '     * Databases: SQL optimization, NoSQL, caching (Redis), database design\\n' +\n  '     * Testing: Unit tests (Jest, Vitest), Integration tests, E2E tests (Cypress, Playwright), Test coverage\\n' +\n  '     * Code quality: Linting (ESLint), Type safety (TypeScript), Code reviews, SOLID principles\\n' +\n  '     * Monitoring: Observability, logging (ELK stack, Datadog), performance monitoring\\n' +\n  '     * DevOps: Infrastructure as Code (Terraform), monitoring, logging\\n' +\n  '   - For EACH missing keyword: suggest where/how to add it naturally without sounding forced\\n\\n' +\n  '6. Gap Identification - Israeli Market 2026:\\n' +\n  '   - What critical skills/technologies are missing?\\n' +\n  '   - Which gaps are \"must-have\" for the market right now?\\n' +\n  '   - Which are \"nice-to-have\"?\\n' +\n  '   - Priority ranking: What would make the BIGGEST difference?\\n\\n' +\n  '7. Production-Grade Signals:\\n' +\n  '   - Does the CV show evidence of: Scaling systems, Production debugging, Leadership/mentoring, ' +\n  'Documentation and knowledge sharing, Contributing to open source, Performance optimization, Security awareness?\\n\\n' +\n  'Output Format:\\n' +\n  '- Section-by-section analysis with specific recommendations\\n' +\n  '- \"Before/After\" examples for reframing\\n' +\n  '- Numbered priority list of improvements\\n' +\n  '- Estimated impact of each change on marketability\\n\\n' +\n  'Company: ' + jobData.company_name + '\\n' +\n  'Job Title: ' + jobData.job_title + '\\n' +\n  'Job Requirements: ' + jobData.job_requirements + '\\n' +\n  'User Skills: ' + jobData.user_skills;\n\nconst coverLetterPrompt =\n  'You are a seasoned recruiter at a top Israeli tech company (Google, Palo Alto, or similar) ' +\n  'who loves a good authentic story AND respects technical depth. ' +\n  'You\\'ve seen hundreds of cover letters - you know what actually gets attention.\\n\\n' +\n  'Your Task:\\n' +\n  '1. Craft the Story - What\\'s MY unique angle? Why do I care about this specific company/problem?\\n' +\n  '2. Technical Credibility - Include ONE specific technical achievement that PROVES I can deliver\\n' +\n  '3. Company Understanding - Show knowledge of their recent tech decisions, product direction\\n' +\n  '4. Professional Tone - Confident but respectful, show enthusiasm without desperation\\n' +\n  '5. Structure: Hook -> Bridge -> Proof -> Close\\n\\n' +\n  'Output: Complete cover letter draft with annotations explaining strategy for each section.\\n\\n' +\n  'Company: ' + jobData.company_name + '\\n' +\n  'Job Title: ' + jobData.job_title + '\\n' +\n  'Job Requirements: ' + jobData.job_requirements;\n\nconst resume = await callGroq(resumePrompt);\nconst coverLetter = await callGroq(coverLetterPrompt);\n\nconst metadataContent =\n  '# Application: ' + safe(jobData.company_name) + ' - ' + safe(jobData.job_title) + '\\n\\n' +\n  '- Company: ' + safe(jobData.company_name) + '\\n' +\n  '- Title: ' + safe(jobData.job_title) + '\\n' +\n  '- Location: ' + safe(jobData.location) + '\\n' +\n  '- URL: ' + safe(jobData.job_url) + '\\n' +\n  '- Applied: ' + safe(jobData.applied_date) + '\\n' +\n  '- Application ID: ' + safe(jobData.application_id) + '\\n\\n' +\n  '## Job Description\\n' + safe(jobData.job_description) + '\\n\\n' +\n  '## Requirements\\n' + safe(jobData.job_requirements) + '\\n';\n\nconst resumeContent = '# Resume - ' + safe(jobData.job_title) + ' at ' + safe(jobData.company_name) + '\\n\\n' + resume;\nconst coverLetterContent = '# Cover Letter - ' + safe(jobData.company_name) + '\\n\\n' + coverLetter;\n\nreturn [{\n  json: {\n    ...jobData,\n    tier1_status: 'complete',\n    resume_preview: resume.substring(0, 300),\n    metadata_content: metadataContent,\n    resume_content: resumeContent,\n    cover_letter_content: coverLetterContent\n  }\n}];\n"
-      }
+        464,
+        112
+      ]
     },
     {
-      "id": "e1f2a3b4-c5d6-4e7f-8a9b-c0d1e2f3a4b5",
+      "parameters": {
+        "jsCode": "const tierData = $input.first().json;\nconst resumeText = (tierData.resume_content || '').toLowerCase();\n\nconst keywordCategories = {\n  'Cloud Platforms': ['aws', 'ec2', 's3', 'lambda', 'rds', 'gcp', 'compute engine', 'cloud run', 'azure'],\n  'Containerization': ['docker', 'kubernetes', 'k8s', 'helm', 'container'],\n  'CI/CD': ['github actions', 'gitlab ci', 'jenkins', 'circleci', 'ci/cd', 'pipeline'],\n  'Architecture': ['microservices', 'distributed', 'scalability', 'load balancing', 'system design', 'rest api', 'graphql'],\n  'Databases': ['sql', 'nosql', 'redis', 'postgresql', 'mongodb', 'elasticsearch'],\n  'Testing': ['jest', 'vitest', 'cypress', 'playwright', 'unit test', 'integration test', 'e2e'],\n  'Code Quality': ['typescript', 'eslint', 'solid', 'code review', 'type safety'],\n  'Monitoring': ['datadog', 'elk', 'observability', 'logging', 'prometheus', 'grafana'],\n  'DevOps': ['terraform', 'infrastructure as code', 'ansible', 'devops']\n};\n\nconst present = [];\nconst missing = [];\n\nfor (const [category, keywords] of Object.entries(keywordCategories)) {\n  const found = keywords.filter(kw => resumeText.includes(kw));\n  const notFound = keywords.filter(kw => !resumeText.includes(kw));\n  if (found.length > 0) present.push('**' + category + '**: ' + found.join(', '));\n  if (notFound.length > 0) missing.push('**' + category + '**: ' + notFound.join(', '));\n}\n\nconst score = Math.round((present.length / (present.length + missing.length)) * 100);\n\nconst atsContent =\n  '# ATS Keyword Analysis - ' + (tierData.company_name || '') + '\\n\\n' +\n  '## ATS Score: ' + score + '%\\n\\n' +\n  '## Keywords Present (' + present.length + ')\\n' +\n  present.map(k => '- ' + k).join('\\n') + '\\n\\n' +\n  '## Missing Keywords (' + missing.length + ') - ADD THESE\\n' +\n  missing.map(k => '- ' + k).join('\\n') + '\\n\\n' +\n  '## Recommendation\\n' +\n  (score < 50 ? 'CRITICAL: Needs significant ATS optimization.' :\n   score < 70 ? 'MODERATE: Add missing keywords naturally.' :\n   'GOOD: Strong ATS coverage.') + '\\n';\n\nreturn [{\n  json: {\n    ...tierData,\n    ats_score: score,\n    ats_content: atsContent,\n    resume_content: (tierData.resume_content || '') + '\\n\\n---\\n\\n' + atsContent\n  }\n}];\n"
+      },
+      "id": "62ed2405-b397-458c-a90d-2e6a82f90659",
       "name": "ATS Keyword Optimization",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1400,
-        100
-      ],
+        704,
+        112
+      ]
+    },
+    {
       "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "const tierData = $input.first().json;\n\n// ATS keyword optimization: scan resume content for critical Israeli tech market keywords\nconst resumeText = (tierData.resume_content || '').toLowerCase();\n\nconst keywordCategories = {\n  'Cloud Platforms': ['aws', 'ec2', 's3', 'lambda', 'rds', 'gcp', 'compute engine', 'cloud run', 'firestore', 'azure'],\n  'Containerization': ['docker', 'kubernetes', 'k8s', 'helm', 'container'],\n  'CI/CD': ['github actions', 'gitlab ci', 'jenkins', 'circleci', 'ci/cd', 'pipeline'],\n  'Architecture': ['microservices', 'distributed', 'scalability', 'load balancing', 'system design', 'rest api', 'graphql'],\n  'Databases': ['sql', 'nosql', 'redis', 'postgresql', 'mongodb', 'elasticsearch', 'database'],\n  'Testing': ['jest', 'vitest', 'cypress', 'playwright', 'unit test', 'integration test', 'e2e', 'test coverage'],\n  'Code Quality': ['typescript', 'eslint', 'solid', 'code review', 'type safety', 'linting'],\n  'Monitoring': ['datadog', 'elk', 'observability', 'logging', 'prometheus', 'grafana', 'monitoring'],\n  'DevOps': ['terraform', 'infrastructure as code', 'iac', 'ansible', 'devops']\n};\n\nconst present = [];\nconst missing = [];\n\nfor (const [category, keywords] of Object.entries(keywordCategories)) {\n  const found = keywords.filter(function(kw) { return resumeText.includes(kw); });\n  const notFound = keywords.filter(function(kw) { return !resumeText.includes(kw); });\n  if (found.length > 0) {\n    present.push('**' + category + '**: ' + found.join(', '));\n  }\n  if (notFound.length > 0) {\n    missing.push('**' + category + '**: ' + notFound.join(', '));\n  }\n}\n\nconst score = Math.round((present.length / (present.length + missing.length)) * 100);\n\nconst atsContent =\n  '# ATS Keyword Analysis - ' + (tierData.company_name || '') + '\\n\\n' +\n  '## ATS Score: ' + score + '%\\n\\n' +\n  '## Keywords Present (' + present.length + ')\\n' +\n  present.map(function(k) { return '- ' + k; }).join('\\n') + '\\n\\n' +\n  '## Missing Keywords (' + missing.length + ') - ADD THESE\\n' +\n  missing.map(function(k) { return '- ' + k; }).join('\\n') + '\\n\\n' +\n  '## Recommendation\\n' +\n  (score < 50 ? 'CRITICAL: Resume needs significant ATS optimization before sending.' :\n   score < 70 ? 'MODERATE: Add missing keywords naturally to improve ATS pass rate.' :\n   'GOOD: Resume has strong ATS keyword coverage. Add remaining keywords where applicable.') + '\\n';\n\nreturn [{\n  json: {\n    ...tierData,\n    ats_score: score,\n    ats_keywords_present: present.length,\n    ats_keywords_missing: missing.length,\n    ats_content: atsContent,\n    resume_content: (tierData.resume_content || '') + '\\n\\n---\\n\\n' + atsContent\n  }\n}];\n"
+        "jsCode": "const d = $('Parse Job Fields').first().json;\nconst _prompt = 'Write a cold intro email to a hiring manager. Max 5 sentences. Specific company reference, one credibility proof, 15min chat ask, easy out. Output: email + 2 alternatives + notes.\\n\\nCompany: ' + d.company_name + '\\nRole: ' + d.job_title + '\\nBackground: ' + (d.cv_text||'').substring(0,400);\nreturn [{ json: {\n  prompt: _prompt,\n  body: JSON.stringify({\n    model: 'llama-3.1-8b-instant',\n    messages: [{ role: 'user', content: _prompt }],\n    temperature: 0.7,\n    max_tokens: 2048\n  })\n} }];"
+      },
+      "id": "5a1d775d-928c-4873-9409-33bf41c50d41",
+      "name": "T2 Intro Email Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('T2 Intro Email Prepare').first().json.body }}",
+        "options": {}
+      },
+      "id": "85d80da9-8c99-4f2f-b5d5-48e717a47b00",
+      "name": "T2 Intro Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        0,
+        512
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EV5TtLlrpZapy6WQ",
+          "name": "Header Auth account 2"
+        }
       }
     },
     {
-      "id": "e5f6a7b8-c9d0-4e1f-2a3b-c4d5e6f7a8b9",
+      "parameters": {
+        "jsCode": "const d = $('Parse Job Fields').first().json;\nconst _prompt = 'Write a follow-up email under 100 words. Professional, personable.\\n\\nCompany: ' + d.company_name + '\\nRole: ' + d.job_title;\nreturn [{ json: {\n  prompt: _prompt,\n  body: JSON.stringify({\n    model: 'llama-3.1-8b-instant',\n    messages: [{ role: 'user', content: _prompt }],\n    temperature: 0.7,\n    max_tokens: 2048\n  })\n} }];"
+      },
+      "id": "5e376969-77c7-4772-aaa9-f25826ba99d0",
+      "name": "T2 Follow Up Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('T2 Follow Up Prepare').first().json.body }}",
+        "options": {}
+      },
+      "id": "926a46e2-fb7a-401d-bed4-cf1efe55e13d",
+      "name": "T2 Follow Up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        0,
+        656
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EV5TtLlrpZapy6WQ",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Parse Job Fields').first().json;\nconst _prompt = 'Research ' + d.company_name + '. Bullet points: industry, recent achievements, culture, tech stack, hiring trends.';\nreturn [{ json: {\n  prompt: _prompt,\n  body: JSON.stringify({\n    model: 'llama-3.1-8b-instant',\n    messages: [{ role: 'user', content: _prompt }],\n    temperature: 0.7,\n    max_tokens: 2048\n  })\n} }];"
+      },
+      "id": "2622d3cc-3e60-46ca-b145-21e0f30404c2",
+      "name": "T2 Company Research Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('T2 Company Research Prepare').first().json.body }}",
+        "options": {}
+      },
+      "id": "3a1ce368-227e-4b95-9f49-be343006f79d",
+      "name": "T2 Company Research",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        0,
+        800
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EV5TtLlrpZapy6WQ",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Parse Job Fields').first().json;\nconst cv = (d.cv_text || '').substring(0, 500);\n\n// WHY clarify direction: previous prompt was ambiguous and the AI wrote\n// messages TO the candidate instead of FROM the candidate TO a recruiter.\nconst _prompt =\n  'I am a software engineering student applying for a job. '\n  + 'Write outreach messages FROM ME to a recruiter or engineer at ' + d.company_name + '.\\n\\n'\n  + '1) LinkedIn connection request (max 300 chars): '\n  + 'Brief, specific, mentions one thing about ' + d.company_name + ' or the ' + d.job_title + ' role that genuinely interests me. '\n  + 'Not generic. Reference one of my projects if relevant.\\n\\n'\n  + '2) LinkedIn follow-up message (max 500 chars): '\n  + 'Sent after they accept. Reference my most relevant project, ask one specific question about their engineering work. '\n  + 'Peer tone, not desperate.\\n\\n'\n  + 'My background: ' + cv + '\\n'\n  + 'Target role: ' + d.job_title + ' at ' + d.company_name;\n\nreturn [{ json: {\n  prompt: _prompt,\n  body: JSON.stringify({\n    model: 'llama-3.1-8b-instant',\n    messages: [{ role: 'user', content: _prompt }],\n    temperature: 0.7,\n    max_tokens: 2048\n  })\n} }];\n"
+      },
+      "id": "30a3cb86-6997-4491-9677-7d514b638aac",
+      "name": "T2 LinkedIn Message Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('T2 LinkedIn Message Prepare').first().json.body }}",
+        "options": {}
+      },
+      "id": "089ef867-e881-4530-8156-deb4ff47aa5c",
+      "name": "T2 LinkedIn Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        0,
+        960
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EV5TtLlrpZapy6WQ",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobData = $('Parse Job Fields').first().json;\n\nconst introEmail = $('T2 Intro Email').first().json?.choices?.[0]?.message?.content || '[Failed]';\nconst followUp = $('T2 Follow Up').first().json?.choices?.[0]?.message?.content || '[Failed]';\nconst research = $('T2 Company Research').first().json?.choices?.[0]?.message?.content || '[Failed]';\nconst linkedin = $('T2 LinkedIn Message').first().json?.choices?.[0]?.message?.content || '[Failed]';\n\nconst coldEmailContent =\n  '# Cold Outreach - ' + jobData.company_name + '\\n\\n' +\n  '## Introduction Email\\n\\n' + introEmail + '\\n\\n---\\n\\n' +\n  '## Follow-Up Email\\n\\n' + followUp + '\\n';\n\nconst companyResearchContent = '# Company Research - ' + jobData.company_name + '\\n\\n' + research + '\\n';\nconst linkedinContent = '# LinkedIn Messages - ' + jobData.company_name + '\\n\\n' + linkedin + '\\n';\n\n// WHY return only T2's unique keys: Merge Results does Object.assign of all tiers.\n// If we spread ...jobData here, we overwrite T1's enriched keys (fit_score,\n// resume_content, etc.) with the raw Parse Job Fields values.\nreturn [{\n  json: {\n    tier2_status: 'complete',\n    cold_email_content: coldEmailContent,\n    company_research_content: companyResearchContent,\n    personal_angle_content: linkedinContent\n  }\n}];"
+      },
+      "id": "0a113ea2-f855-40bc-8489-61b349a3e62b",
       "name": "Tier 2 - Cold Outreach",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1100,
-        300
-      ],
+        304,
+        656
+      ]
+    },
+    {
       "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "const jobData = $input.first().json;\n\nasync function callGroq(prompt) {\n  // WHY Groq: free tier, runs llama3-8b (same family as llama3.2), fast inference\n  // WHY $env: n8n exposes env vars to code nodes via $env (not process.env)\n  // Groq uses OpenAI-compatible API so the structure is familiar\n  const groqKey = $env.GROQ_API_KEY || '';\n  if (!groqKey) return '[Error: GROQ_API_KEY not set in environment]';\n\n  for (let attempt = 1; attempt <= 3; attempt++) {\n    try {\n      const resp = await $helpers.httpRequest({\n        method: 'POST',\n        url: 'https://api.groq.com/openai/v1/chat/completions',\n        headers: {\n          'Content-Type': 'application/json',\n          'Authorization': 'Bearer ' + groqKey\n        },\n        // WHY messages array: Groq uses chat format (role/content), not raw prompt\n        body: {\n          model: 'llama3-8b-8192',\n          messages: [{ role: 'user', content: prompt }],\n          temperature: 0.7,\n          max_tokens: 2048\n        },\n      });\n      // WHY this path: Groq returns choices[0].message.content (OpenAI format)\n      return (resp && resp.choices && resp.choices[0]) \n        ? resp.choices[0].message.content \n        : '[No response]';\n    } catch (e) {\n      if (attempt === 3) return '[Groq Error: ' + e.message + ']';\n      // WHY exponential backoff: rate limits are more likely on retry, give API time to recover\n      await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));\n    }\n  }\n}\n\nconst introEmailPrompt =\n  'You are a successful Israeli engineer/founder reaching out to hiring managers as a peer ' +\n  '(not as a desperate job-seeker, but as someone confident they\\'d be a good fit).\\n\\n' +\n  'Your Task:\\n' +\n  '1. Respect Their Time - Maximum 4-5 sentences, clear value proposition in first 2 sentences\\n' +\n  '2. Personalization - Reference something SPECIFIC about them (tech decision, product feature, talk they gave)\\n' +\n  '   NOT: \"I\\'m impressed with your company\" (too generic)\\n' +\n  '   YES: \"I noticed you migrated to Kubernetes - that\\'s exactly the infrastructure thinking I\\'m passionate about\"\\n' +\n  '3. Credibility in One Sentence - Prove you\\'re not a junior, reference a recent relevant project/skill\\n' +\n  '4. Specific Ask - \"Would you have 15 minutes for a quick chat about [specific topic]?\"\\n' +\n  '5. Easy Out - \"No pressure if timing doesn\\'t work!\" - shows confidence and respect\\n\\n' +\n  'Template: [Personalized reference] [My credibility] [Specific ask] [Easy out]\\n' +\n  'Output: Complete cold email + 2-3 alternative versions + notes on what makes it likely to get a response\\n\\n' +\n  'Company: ' + jobData.company_name + '\\nJob Title: ' + jobData.job_title;\n\nconst followUpPrompt =\n  'Create a follow-up email for ' + jobData.company_name + ' ' + jobData.job_title + ' position. ' +\n  'Show genuine interest, reference previous contact/application. Build on introduction. ' +\n  'Under 100 words. Be professional but personable.';\n\nconst companyResearchPrompt =\n  'Research and provide detailed information about ' + jobData.company_name + '. ' +\n  'Include: industry/sector, recent news and achievements, company size and growth, ' +\n  'key decision-makers if known, company culture indicators, recent funding/partnerships, ' +\n  'growth metrics, hiring trends. Format as comprehensive bullet-point analysis.';\n\nconst personalAnglePrompt =\n  'Identify personal connection angles for contacting ' + jobData.company_name + ' for ' + jobData.job_title + '. ' +\n  'Look for: alumni connections, shared interests or values, industry events, mutual LinkedIn connections, ' +\n  'shared projects or open source, content they\\'ve published, hiring manager information. ' +\n  'Suggest specific outreach strategy for each angle.';\n\nconst introEmail = await callGroq(introEmailPrompt);\nconst followUp = await callGroq(followUpPrompt);\nconst companyResearch = await callGroq(companyResearchPrompt);\nconst personalAngle = await callGroq(personalAnglePrompt);\n\nconst coldEmailContent =\n  '# Cold Outreach - ' + jobData.company_name + '\\n\\n' +\n  '## Introduction Email\\n\\n' + introEmail + '\\n\\n---\\n\\n' +\n  '## Follow-Up Email\\n\\n' + followUp + '\\n';\n\nconst companyResearchContent =\n  '# Company Research - ' + jobData.company_name + '\\n\\n' + companyResearch + '\\n';\n\nconst personalAngleContent =\n  '# Personal Connection Angles - ' + jobData.company_name + '\\n\\n' + personalAngle + '\\n';\n\nreturn [{\n  json: {\n    ...jobData,\n    tier2_status: 'complete',\n    cold_email_content: coldEmailContent,\n    company_research_content: companyResearchContent,\n    personal_angle_content: personalAngleContent\n  }\n}];\n"
+        "jsCode": "const d = $('Parse Job Fields').first().json;\nconst _prompt = 'Senior Technical HM evaluation.\\n1. First impression\\n2. Skills audit per area\\n3. Gaps: MUST/SHOULD/NICE\\n4. Priority matrix\\n5. Action plan\\n\\nJob: ' + d.job_title + ' at ' + d.company_name + '\\nRequirements: ' + d.job_requirements + '\\nCV: ' + (d.cv_text||'').substring(0,2000);\nreturn [{ json: {\n  prompt: _prompt,\n  body: JSON.stringify({\n    model: 'llama-3.1-8b-instant',\n    messages: [{ role: 'user', content: _prompt }],\n    temperature: 0.7,\n    max_tokens: 2048\n  })\n} }];"
+      },
+      "id": "6c27919f-9a8e-45de-94ab-91acf12e1d64",
+      "name": "T3 Skills Gap Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('T3 Skills Gap Prepare').first().json.body }}",
+        "options": {}
+      },
+      "id": "806ee575-da03-4c4a-a1c0-fb02b33e17f9",
+      "name": "T3 Skills Gap",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        0,
+        1104
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EV5TtLlrpZapy6WQ",
+          "name": "Header Auth account 2"
+        }
       }
     },
     {
-      "id": "f6a7b8c9-d0e1-4f2a-3b4c-d5e6f7a8b9c0",
+      "parameters": {
+        "jsCode": "const d = $('Parse Job Fields').first().json;\nconst _prompt = 'Generate interview questions.\\n1. System Design (2-3) with model answers\\n2. Behavioral (2-3)\\n3. Questions candidate should ask (3-4)\\n\\nRole: ' + d.job_title + ' at ' + d.company_name + '\\nTech: ' + d.tech_stack;\nreturn [{ json: {\n  prompt: _prompt,\n  body: JSON.stringify({\n    model: 'llama-3.1-8b-instant',\n    messages: [{ role: 'user', content: _prompt }],\n    temperature: 0.7,\n    max_tokens: 2048\n  })\n} }];"
+      },
+      "id": "3817015d-2511-4f3f-b4d3-9f7c40151536",
+      "name": "T3 Interview Questions Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        1264
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('T3 Interview Questions Prepare').first().json.body }}",
+        "options": {}
+      },
+      "id": "41976cf8-f7bd-4edc-a0ca-58a47afd7ca4",
+      "name": "T3 Interview Questions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        0,
+        1264
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EV5TtLlrpZapy6WQ",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Parse Job Fields').first().json;\nconst cv = (d.cv_text || '').substring(0, 2000);\n\nconst _prompt =\n  'You are a senior technical interviewer with 15+ years at Google, Meta, and NVIDIA Israel. '\n  + 'You have conducted hundreds of interviews for junior software engineering roles.\\n\\n'\n  + 'I have an interview for ' + d.job_title + ' at ' + d.company_name + '.\\n'\n  + 'Job requirements: ' + d.job_requirements + '\\n\\n'\n  + 'My CV:\\n' + cv + '\\n\\n'\n  + 'Generate the following sections:\\n\\n'\n\n  + '## 1. 60-Second Introduction\\n'\n  + 'Write the EXACT words I should say. Lead with my strongest relevant achievement. '\n  + 'Second sentence: what I build and my domain. '\n  + 'Third sentence: one specific reason I want to work at ' + d.company_name + ' (technical, not generic). '\n  + 'Banned: excited, passionate, would love, looking forward.\\n\\n'\n\n  + '## 2. Job Requirements → Interview Questions\\n'\n  + 'For EACH requirement listed in the job description, generate:\\n'\n  + '  - The most likely interview question based on that requirement '\n  + '(use \"Tell me about a time when...\" for experience-based, '\n  + '\"How would you...\" for hypothetical/design, '\n  + '\"Walk me through...\" for technical deep-dives)\\n'\n  + '  - My best answer based on my ACTUAL CV above. '\n  + 'Use the STAR format (Situation, Task, Action, Result) for behavioral. '\n  + 'Use specific project names, real metrics, and technical decisions from my CV. '\n  + 'Never invent experience I do not have — if I lack it, show how my closest experience is transferable.\\n\\n'\n\n  + '## 3. Technical Deep-Dive Questions\\n'\n  + 'For my 2-3 most relevant projects for this role: '\n  + 'Write the hardest technical follow-up question an interviewer would ask, '\n  + 'and my ideal answer showing engineering depth (trade-offs, alternatives considered, lessons learned).\\n\\n'\n\n  + '## 4. Questions I Should Ask the Interviewer\\n'\n  + '3-4 questions specific to ' + d.company_name + ' at the ' + d.job_title + ' level. '\n  + 'These should reveal: their engineering culture, technical direction, how they handle scale. '\n  + 'NOT: salary, work-life balance, perks.\\n\\n'\n\n  + '## 5. Honest Weakness\\n'\n  + 'One genuine gap relevant to this role, framed as growth in progress. '\n  + 'Specific to my actual CV — not generic. Show what I am actively doing about it.\\n\\n'\n  + '## 6. Why Should We Hire You?\\n'\n  + 'Identify 3 key things I want the interviewer to walk out remembering about me. '\n  + 'Choose based on: what is most relevant to ' + d.job_title + ' at ' + d.company_name + ', '\n  + 'what genuinely differentiates me from other candidates at my level, '\n  + 'and what I can actually prove with a story from my CV.\\n'\n  + 'For each of the 3 things:\\n'\n  + '  - State the attribute (e.g. \"I deliver measurable performance results\")\\n'\n  + '  - Write 1-2 specific stories from my CV that SHOW it (not tell it). '\n  + 'Use real project names, real numbers, real decisions. '\n  + 'Never invent. If a story does not exist in my CV, do not use it.\\n'\n  + '  - Write the exact 2-3 sentences I should say to open this point in the interview.\\n\\n'\n  + '## 7. Why Do You Want to Work Here?\\n'\n  + 'Write a specific, researched answer for why I want to work at ' + d.company_name + ' '\n  + 'in the ' + d.job_title + ' role specifically. '\n  + 'Structure:\\n'\n  + '  Part 1 — The company angle: one specific technical thing ' + d.company_name + ' is doing '\n  + '(a product, an engineering decision, a research area, a system they built) '\n  + 'that genuinely connects to my work. Not \"you are innovative\" — something real and specific.\\n'\n  + '  Part 2 — The role angle: how this specific role (' + d.job_title + ') '\n  + 'matches a specific skill or interest I have demonstrated in my CV. '\n  + 'Connect it explicitly: \"the work on X in my CV maps directly to Y that this role focuses on\".\\n'\n  + '  Part 3 — The growth angle: what I expect to learn or build here that I cannot build elsewhere. '\n  + 'Be specific to ' + d.company_name + '\\'s scale, domain, or engineering culture.\\n'\n  + 'Write the exact words I should say — natural, confident, not rehearsed-sounding. '\n  + 'Max 4-5 sentences total. No filler, no flattery.';\n\nreturn [{ json: {\n  prompt: _prompt,\n  body: JSON.stringify({\n    model: 'llama-3.1-8b-instant',\n    messages: [{ role: 'user', content: _prompt }],\n    temperature: 0.7,\n    max_tokens: 4096\n  })\n} }];\n"
+      },
+      "id": "1e119843-3768-4033-94ee-7afbb0ca4b41",
+      "name": "T3 Talking Points Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        1408
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('T3 Talking Points Prepare').first().json.body }}",
+        "options": {}
+      },
+      "id": "163a2e0b-7b76-48a7-b1b0-b37be21adbfc",
+      "name": "T3 Talking Points",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        0,
+        1408
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EV5TtLlrpZapy6WQ",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Parse Job Fields').first().json;\n\nconst _prompt =\n  'Israeli tech market salary guide 2026 for ' + d.job_title + ' at ' + d.company_name + '.\\n'\n  + 'Location: ' + (d.location || 'Tel Aviv, Israel') + '\\n\\n'\n  + 'IMPORTANT: Use MONTHLY salary in ILS (not annual). '\n  + 'Show both gross (ברוטו) and approximate net (נטו) after Israeli taxes.\\n\\n'\n  + '1. Monthly salary ranges by level (Junior/Mid/Senior): gross + estimated net\\n'\n  + '2. Where a candidate with strong academic projects but no full-time experience fits\\n'\n  + '3. Negotiation scripts — specific sentences to say when asked \"what are your salary expectations?\"\\n'\n  + '4. Total comp breakdown: base, bonus, stock options, pension (קרן פנסיה), meal allowance (דמי אוכל), travel (נסיעות)\\n'\n  + '5. Red flags in Israeli job offers to watch out for\\n'\n  + '6. Is ' + d.company_name + ' known to pay above/below market? Any specific notes.\\n';\n\nreturn [{ json: {\n  prompt: _prompt,\n  body: JSON.stringify({\n    model: 'llama-3.1-8b-instant',\n    messages: [{ role: 'user', content: _prompt }],\n    temperature: 0.7,\n    max_tokens: 2048\n  })\n} }];\n"
+      },
+      "id": "206bcbbc-8c22-4f2d-a20f-093811beb9c2",
+      "name": "T3 Salary Guide Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        1552
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('T3 Salary Guide Prepare').first().json.body }}",
+        "options": {}
+      },
+      "id": "e40378a4-4482-44ca-8bbc-f3ea8ee51bda",
+      "name": "T3 Salary Guide",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        0,
+        1552
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EV5TtLlrpZapy6WQ",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobData = $('Parse Job Fields').first().json;\n\n// WHY read by node name: T3 runs sequentially so $input only has the last\n// node's output (T3 Salary Guide). Same fix as was applied to Tier 2.\nconst skillsGap = $('T3 Skills Gap').first().json?.choices?.[0]?.message?.content || '[Failed]';\nconst interviewQuestions = $('T3 Interview Questions').first().json?.choices?.[0]?.message?.content || '[Failed]';\nconst talkingPoints = $('T3 Talking Points').first().json?.choices?.[0]?.message?.content || '[Failed]';\nconst salary = $('T3 Salary Guide').first().json?.choices?.[0]?.message?.content || '[Failed]';\n\nconst interviewPrepContent =\n  '# Interview Preparation - ' + jobData.company_name + ' - ' + jobData.job_title + '\\n\\n' +\n  '## Skills Gap Analysis\\n\\n' + skillsGap + '\\n\\n---\\n\\n' +\n  '## Interview Questions & Model Answers\\n\\n' + interviewQuestions + '\\n\\n---\\n\\n' +\n  '## Talking Points\\n\\n' + talkingPoints + '\\n\\n---\\n\\n' +\n  '## Salary Guide & Negotiation\\n\\n' + salary + '\\n';\n\n// WHY return only T3's unique keys: same reason as Tier 2.\nreturn [{\n  json: {\n    tier3_status: 'complete',\n    interview_prep_content: interviewPrepContent\n  }\n}];"
+      },
+      "id": "7dff9869-2e27-425a-a091-011099dc4ab7",
       "name": "Tier 3 - Interview Prep",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1100,
-        500
-      ],
+        304,
+        1264
+      ]
+    },
+    {
       "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "const jobData = $input.first().json;\n\nasync function callGroq(prompt) {\n  // WHY Groq: free tier, runs llama3-8b (same family as llama3.2), fast inference\n  // WHY $env: n8n exposes env vars to code nodes via $env (not process.env)\n  // Groq uses OpenAI-compatible API so the structure is familiar\n  const groqKey = $env.GROQ_API_KEY || '';\n  if (!groqKey) return '[Error: GROQ_API_KEY not set in environment]';\n\n  for (let attempt = 1; attempt <= 3; attempt++) {\n    try {\n      const resp = await $helpers.httpRequest({\n        method: 'POST',\n        url: 'https://api.groq.com/openai/v1/chat/completions',\n        headers: {\n          'Content-Type': 'application/json',\n          'Authorization': 'Bearer ' + groqKey\n        },\n        // WHY messages array: Groq uses chat format (role/content), not raw prompt\n        body: {\n          model: 'llama3-8b-8192',\n          messages: [{ role: 'user', content: prompt }],\n          temperature: 0.7,\n          max_tokens: 2048\n        },\n      });\n      // WHY this path: Groq returns choices[0].message.content (OpenAI format)\n      return (resp && resp.choices && resp.choices[0]) \n        ? resp.choices[0].message.content \n        : '[No response]';\n    } catch (e) {\n      if (attempt === 3) return '[Groq Error: ' + e.message + ']';\n      // WHY exponential backoff: rate limits are more likely on retry, give API time to recover\n      await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));\n    }\n  }\n}\n\nconst skillsGapPrompt =\n  'You are a Senior Technical Hiring Manager from the Israeli high-tech industry ' +\n  '(Google, Palo Alto, SailPoint, Wix, etc.). You\\'re evaluating my profile objectively - no sugar-coating, but constructive.\\n\\n' +\n  'Your Task:\\n' +\n  '1. First Impression Assessment - Am I a \"strong hire\", \"promising with gaps\", or \"needs significant work\"?\\n' +\n  '2. Technical Skills Audit - For EACH major area, assess my level (Beginner/Intermediate/Advanced/Expert):\\n' +\n  '   Backend, Frontend, Databases, Cloud, DevOps/Infrastructure, System Design, Testing, Code Quality\\n' +\n  '3. Critical Gaps for Israeli Market 2026 - MUST-HAVE, SHOULD-HAVE, NICE-TO-HAVE\\n' +\n  '4. Priority Matrix - For top 5 gaps: Quick wins (2-4 weeks), Medium effort (1-3 months), Long-term (3-6 months)\\n' +\n  '5. Competitive Analysis - What percentile? What would make you stand out?\\n' +\n  '6. Actionable Improvement Plan - For EACH gap: what to learn, how to learn it, how to PROVE it, timeline\\n\\n' +\n  'Output: Executive summary, gap-by-gap analysis with priority, top 3 recommendations\\n\\n' +\n  'Job Title: ' + jobData.job_title + '\\nCompany: ' + jobData.company_name + '\\n' +\n  'Requirements: ' + jobData.job_requirements + '\\nUser Skills: ' + jobData.user_skills;\n\nconst interviewQuestionsPrompt =\n  'You are a Senior Engineer conducting technical interviews at a top Israeli company. ' +\n  'You want to assess: technical depth, problem-solving, learning ability, communication, and cultural fit.\\n\\n' +\n  'Your Task:\\n' +\n  '1. System Design Questions (2-3): Generate realistic questions relevant to the specific role. ' +\n  'For EACH: what a good answer looks like, common mistakes, how to show scalability/tradeoffs/monitoring\\n' +\n  '2. Behavioral Questions (2-3): Reveal problem-solving, learning ability, collaboration, handling failure\\n' +\n  '3. Culture Fit & Growth - Questions specific to Israeli tech culture\\n' +\n  '4. Talking Points - What to emphasize about my background, how to frame weaknesses as growth areas\\n' +\n  '5. Questions YOU Should Ask Them (3-4 intelligent questions showing you understand the role)\\n\\n' +\n  'Output: Question + model answer + explanation, \"Why this works\" + \"Common mistakes to avoid\"\\n\\n' +\n  'Job Title: ' + jobData.job_title + '\\nCompany: ' + jobData.company_name + '\\nTech Stack: ' + jobData.tech_stack;\n\nconst talkingPointsPrompt =\n  'You are a career coach and technical mentor helping me prepare talking points for interviews.\\n\\n' +\n  'Your Task:\\n' +\n  '1. For This Specific Role - What are the 3-5 most relevant experiences/skills I should highlight?\\n' +\n  '2. Project Deep-Dives - For my 3 best projects: Problem -> Solution -> Impact\\n' +\n  '3. Addressing Gaps - Where might they ask tough questions? How to frame gaps authentically?\\n' +\n  '4. Company-Specific Talking Points - How do my experiences align with THEIR mission/tech stack?\\n' +\n  '5. Strength Positioning - Top 3 strengths for this role with evidence/metrics\\n\\n' +\n  'Output: Bullet-point talking points, for each: the point + supporting story + how to deliver it naturally\\n\\n' +\n  'Company: ' + jobData.company_name + '\\nJob Title: ' + jobData.job_title;\n\nconst salaryPrompt =\n  'You are a seasoned HR professional + engineer who understands both sides. ' +\n  'You know Israeli market realities and what\\'s negotiable.\\n\\n' +\n  'Your Task:\\n' +\n  '1. Market Research & Benchmarking - salary range for this role + level in Israel (2026)\\n' +\n  '2. My Leverage Assessment - strongest negotiation points, unique skills\\n' +\n  '3. Total Compensation Breakdown - Base, equity/options, bonus, benefits, signing\\n' +\n  '4. Negotiation Scripts: \"What\\'s your expectation?\" / \"Best we can do is X\" / \"Can you start next week?\"\\n' +\n  '5. Red Flags & Warnings - equity worth, benefits, flexibility\\n' +\n  '6. Walk-Away Point - minimum acceptable offer\\n\\n' +\n  'Output: Market salary ranges, leverage assessment, script templates, red flags, total comp comparison\\n\\n' +\n  'Job Title: ' + jobData.job_title + '\\nLocation: ' + jobData.location;\n\nconst skillsGap = await callGroq(skillsGapPrompt);\nconst interviewQuestions = await callGroq(interviewQuestionsPrompt);\nconst talkingPoints = await callGroq(talkingPointsPrompt);\nconst salary = await callGroq(salaryPrompt);\n\nconst interviewPrepContent =\n  '# Interview Preparation - ' + jobData.company_name + ' - ' + jobData.job_title + '\\n\\n' +\n  '## Skills Gap Analysis\\n\\n' + skillsGap + '\\n\\n---\\n\\n' +\n  '## Interview Questions & Answers\\n\\n' + interviewQuestions + '\\n\\n---\\n\\n' +\n  '## Talking Points\\n\\n' + talkingPoints + '\\n\\n---\\n\\n' +\n  '## Salary Guide & Negotiation\\n\\n' + salary + '\\n';\n\nreturn [{\n  json: {\n    ...jobData,\n    tier3_status: 'complete',\n    interview_prep_content: interviewPrepContent\n  }\n}];\n"
+        "url": "https://api.github.com/users/odeliyach/repos?sort=updated&per_page=30&type=public",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-job-search"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "eda5d20a-8100-45bb-a669-f2d777d89acd",
+      "name": "T4 Fetch GitHub Repos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        0,
+        1808
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nriQcBdVr3dXV5me",
+          "name": "Header Auth account"
+        }
       }
     },
     {
-      "id": "a7b8c9d0-e1f2-4a3b-4c5d-e6f7a8b9c0d1",
+      "parameters": {
+        "jsCode": "const d = $('Parse Job Fields').first().json;\nconst repoItems = $('T4 Fetch GitHub Repos').all();\nconst repos = repoItems.map(i => i.json).filter(r => r && r.name);\n\n// WHY include all available metadata:\n// The /users/repos API doesn't return README content or file listings.\n// We pass everything it DOES return so the AI makes accurate assessments.\n// Crucially: tell the AI what it CANNOT know to stop it from guessing.\nconst repoList = repos.map(r =>\n  'Repo: ' + r.name + '\\n'\n  + '  Language: ' + (r.language || 'N/A') + '\\n'\n  + '  Description: ' + (r.description || '[no description]') + '\\n'\n  + '  Topics: ' + (r.topics && r.topics.length > 0 ? r.topics.join(', ') : '[none]') + '\\n'\n  + '  Stars: ' + (r.stargazers_count || 0) + '\\n'\n  + '  Forks: ' + (r.forks_count || 0) + '\\n'\n  + '  Open issues: ' + (r.open_issues_count || 0) + '\\n'\n  + '  Size (KB): ' + (r.size || 0) + '\\n'\n  + '  Has wiki: ' + (r.has_wiki ? 'yes' : 'no') + '\\n'\n  + '  Is fork: ' + (r.fork ? 'yes' : 'no') + '\\n'\n  + '  URL: ' + (r.html_url || '') + '\\n'\n).join('\\n');\n\nconst _prompt =\n  'You are a senior engineering hiring manager analyzing a candidate\\'s GitHub portfolio.\\n\\n'\n  + 'Job: ' + d.job_title + ' at ' + d.company_name + '\\n'\n  + 'Requirements: ' + d.job_requirements + '\\n\\n'\n  + 'CANDIDATE\\'S ACTUAL GITHUB REPOS (use ONLY these, never invent repos):\\n'\n  + repoList + '\\n\\n'\n  + 'IMPORTANT CONSTRAINTS:\\n'\n  + '- You do NOT have access to the actual code, README files, or test files.\\n'\n  + '- You CAN infer from: description, topics, language, size, forks, open issues.\\n'\n  + '- A repo with no description likely has no README — flag it.\\n'\n  + '- A repo with size < 50KB and no description is likely undocumented — flag it.\\n'\n  + '- Do NOT say \"no tests\" unless you have evidence. Say \"tests not visible from metadata\" instead.\\n\\n'\n  + 'Your task:\\n'\n  + '1. Pick the top 3-5 repos most relevant to this role. For each:\\n'\n  + '   - WHY it is relevant (connect to specific job requirements)\\n'\n  + '   - Technical signals visible from the metadata\\n'\n  + '   - Resume bullet: strong action verb + metric (use real metrics from description if present)\\n'\n  + '   - Documentation gaps visible from metadata (missing description, no topics, very small size)\\n'\n  + '2. Skills demonstrated across the portfolio matching this role\\n'\n  + '3. Skills missing for this role not visible in any repo\\n'\n  + '4. Single highest-impact portfolio improvement for this role';\n\nreturn [{ json: {\n  prompt: _prompt,\n  body: JSON.stringify({\n    model: 'llama-3.1-8b-instant',\n    messages: [{ role: 'user', content: _prompt }],\n    temperature: 0.7,\n    max_tokens: 2048\n  })\n} }];\n"
+      },
+      "id": "9a11943d-95de-4056-b0f8-19ed096575f8",
+      "name": "T4 Portfolio Analysis Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        1808
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('T4 Portfolio Analysis Prepare').first().json.body }}",
+        "options": {}
+      },
+      "id": "243b7c34-af6c-4188-ae54-82c4726f4d14",
+      "name": "T4 Portfolio Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        304,
+        1808
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EV5TtLlrpZapy6WQ",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobData = $('Parse Job Fields').first().json;\nconst repoItems = $('T4 Fetch GitHub Repos').all();\nconst repos = repoItems.map(i => i.json).filter(r => r && r.name);\n\nconst analysisResp = $('T4 Portfolio Analysis').first().json;\nconst analysis = analysisResp.choices && analysisResp.choices[0]\n  ? analysisResp.choices[0].message.content\n  : '[Portfolio analysis failed]';\n\nconst repoDetails = repos.length > 0\n  ? repos.map(r =>\n      '- **' + r.name + '**: ' + (r.description || 'No description') +\n      ' | ' + (r.language || 'N/A') +\n      ' | Stars: ' + (r.stargazers_count || 0) +\n      ' | Updated: ' + (r.updated_at || '').substring(0, 10) +\n      ' | ' + (r.html_url || '')\n    ).join('\\n')\n  : '[Could not fetch repos]';\n\nconst portfolioContent =\n  '# Portfolio Matching - ' + jobData.company_name + ' - ' + jobData.job_title + '\\n\\n' +\n  '## GitHub Repositories (fetched ' + new Date().toISOString().substring(0, 10) + ')\\n\\n' +\n  repoDetails + '\\n\\n---\\n\\n' +\n  '## Portfolio Analysis\\n\\n' + analysis + '\\n';\n\n// WHY separate resume_bullets field:\n// T6 (Tailored Resume) needs clean, actionable resume bullets from T4\n// without the repo listing noise. Keeping it separate avoids truncation issues.\nreturn [{\n  json: {\n    tier4_status: 'complete',\n    portfolio_content: portfolioContent,\n    portfolio_analysis_clean: analysis\n  }\n}];\n"
+      },
+      "id": "10537f71-c2e6-4ab1-9044-8226325c09d3",
       "name": "Tier 4 - Portfolio Matching",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1100,
-        700
-      ],
-      "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "const jobData = $input.first().json;\n\nasync function callGroq(prompt) {\n  // WHY Groq: free tier, runs llama3-8b (same family as llama3.2), fast inference\n  // WHY $env: n8n exposes env vars to code nodes via $env (not process.env)\n  // Groq uses OpenAI-compatible API so the structure is familiar\n  const groqKey = $env.GROQ_API_KEY || '';\n  if (!groqKey) return '[Error: GROQ_API_KEY not set in environment]';\n\n  for (let attempt = 1; attempt <= 3; attempt++) {\n    try {\n      const resp = await $helpers.httpRequest({\n        method: 'POST',\n        url: 'https://api.groq.com/openai/v1/chat/completions',\n        headers: {\n          'Content-Type': 'application/json',\n          'Authorization': 'Bearer ' + groqKey\n        },\n        // WHY messages array: Groq uses chat format (role/content), not raw prompt\n        body: {\n          model: 'llama3-8b-8192',\n          messages: [{ role: 'user', content: prompt }],\n          temperature: 0.7,\n          max_tokens: 2048\n        },\n      });\n      // WHY this path: Groq returns choices[0].message.content (OpenAI format)\n      return (resp && resp.choices && resp.choices[0]) \n        ? resp.choices[0].message.content \n        : '[No response]';\n    } catch (e) {\n      if (attempt === 3) return '[Groq Error: ' + e.message + ']';\n      // WHY exponential backoff: rate limits are more likely on retry, give API time to recover\n      await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));\n    }\n  }\n}\n\n// CHANGE #4: Real GitHub API call to fetch actual repos from odeliyach\nlet repoList = '';\nlet repoDetails = '';\ntry {\n  const reposResp = await $helpers.httpRequest({\n    method: 'GET',\n    url: 'https://api.github.com/users/odeliyach/repos?sort=updated&per_page=30&type=public',\n    headers: {\n      'Accept': 'application/vnd.github.v3+json',\n      'User-Agent': 'n8n-job-search-portfolio'\n    }\n  });\n  const repos = Array.isArray(reposResp) ? reposResp : [];\n  repoList = repos.map(function(r) {\n    return r.name + ' (language: ' + (r.language || 'N/A') + ', stars: ' + r.stargazers_count +\n      ', updated: ' + r.updated_at.substring(0, 10) + '): ' + (r.description || 'No description');\n  }).join('\\n');\n  repoDetails = repos.map(function(r) {\n    return '- **' + r.name + '**: ' + (r.description || 'No description') +\n      ' | Language: ' + (r.language || 'N/A') +\n      ' | Stars: ' + r.stargazers_count +\n      ' | Updated: ' + r.updated_at.substring(0, 10) +\n      ' | URL: ' + r.html_url;\n  }).join('\\n');\n} catch (e) {\n  repoList = '[GitHub API Error: ' + e.message + ']';\n  repoDetails = '[Could not fetch repos: ' + e.message + ']';\n}\n\nconst projectSelectionPrompt =\n  'From user\\'s GitHub (username: odeliyach), identify and select the 5 projects most relevant to the job below.\\n\\n' +\n  'ACTUAL GitHub repos from odeliyach (fetched via GitHub API):\\n' + repoList + '\\n\\n' +\n  'Job Title: ' + jobData.job_title + '\\n' +\n  'Company: ' + jobData.company_name + '\\n' +\n  'Job Description: ' + jobData.job_description + '\\n\\n' +\n  'For each selected project explain: why it\\'s relevant, technical skills match, complexity, business impact, ' +\n  'recency, documentation quality. Be specific about the actual repo names listed above.';\n\nconst metricsPrompt =\n  'For the selected GitHub projects from odeliyach, create quantifiable metrics showing impact. ' +\n  'For each project include: performance improvements (%, ms, throughput), user growth metrics, ' +\n  'cost savings, engagement metrics, scalability metrics, code quality metrics. ' +\n  'Use specific numbers and percentages. Base on the actual repos: ' + repoList;\n\nconst projectContextPrompt =\n  'For each selected project from odeliyach\\'s GitHub provide: original objectives/problem solved, ' +\n  'technical challenges faced, specific role and responsibilities, technologies/tools used, ' +\n  'impact achieved, lessons learned. Be detailed and business-focused. ' +\n  'Actual repos to analyze: ' + repoList;\n\nconst githubStrategyPrompt =\n  'Provide strategies to improve GitHub visibility for odeliyach\\'s projects to attract ' + jobData.company_name + ' attention. ' +\n  'Include: README improvements, demo links/videos, contribution stats highlighting, deployment links, ' +\n  'relevant badges, documentation enhancement, community engagement, GitHub profile optimization. ' +\n  'Focus on these actual repos: ' + repoList;\n\nconst projectSelection = await callGroq(projectSelectionPrompt);\nconst metrics = await callGroq(metricsPrompt);\nconst projectContext = await callGroq(projectContextPrompt);\nconst githubStrategy = await callGroq(githubStrategyPrompt);\n\nconst portfolioContent =\n  '# Portfolio Matching - ' + jobData.company_name + ' - ' + jobData.job_title + '\\n\\n' +\n  '## GitHub Repositories (odeliyach - fetched ' + new Date().toISOString().substring(0, 10) + ')\\n\\n' +\n  repoDetails + '\\n\\n---\\n\\n' +\n  '## Project Selection (Most Relevant to Role)\\n\\n' + projectSelection + '\\n\\n---\\n\\n' +\n  '## Project Metrics\\n\\n' + metrics + '\\n\\n---\\n\\n' +\n  '## Project Context\\n\\n' + projectContext + '\\n\\n---\\n\\n' +\n  '## GitHub Visibility Strategy\\n\\n' + githubStrategy + '\\n';\n\nreturn [{\n  json: {\n    ...jobData,\n    tier4_status: 'complete',\n    portfolio_content: portfolioContent,\n    github_repos_fetched: repoList.substring(0, 500)\n  }\n}];\n"
-      }
+        608,
+        1808
+      ]
     },
     {
-      "id": "b8c9d0e1-f2a3-4b4c-5d6e-f7a8b9c0d1e2",
+      "parameters": {
+        "jsCode": "const jobData = $('Parse Job Fields').first().json;\n\n// WHY read fit_score from ATS Keyword Optimization (T1's tail) not Parse Job Fields:\n// Parse Job Fields doesn't have fit_score yet -- that's computed by T1.\nconst fitScore = $('ATS Keyword Optimization').first().json?.fit_score || 0;\nconst appliedDate = jobData.applied_date || '';\n\nconst now = new Date();\nconst fu1 = new Date(now.getTime() + 3*24*60*60*1000).toISOString().split('T')[0];\nconst fu2 = new Date(now.getTime() + 7*24*60*60*1000).toISOString().split('T')[0];\nconst fu3 = new Date(now.getTime() + 30*24*60*60*1000).toISOString().split('T')[0];\nconst fu4 = new Date(now.getTime() + 90*24*60*60*1000).toISOString().split('T')[0];\n\nconst trackingContent =\n  '# Application Tracking: ' + jobData.company_name + ' - ' + jobData.job_title + '\\n\\n' +\n  '## Status\\n' +\n  '- **Current Status:** Applied\\n' +\n  '- **Applied:** ' + appliedDate + '\\n' +\n  '- **Application ID:** ' + jobData.application_id + '\\n' +\n  '- **Job Fit Score:** ' + fitScore + '%\\n' +\n  '- **Location:** ' + jobData.location + '\\n' +\n  '- **Job URL:** ' + jobData.job_url + '\\n\\n' +\n  '## Follow-Up Schedule\\n' +\n  '- [ ] Day 3 check-in: ' + fu1 + '\\n' +\n  '- [ ] Day 7 follow-up: ' + fu2 + '\\n' +\n  '- [ ] Day 30 check-in: ' + fu3 + '\\n' +\n  '- [ ] 90-day check-in: ' + fu4 + '\\n\\n' +\n  '## Interview Stages\\n' +\n  '- [ ] Phone Screen\\n' +\n  '- [ ] Technical Interview\\n' +\n  '- [ ] System Design Round\\n' +\n  '- [ ] Final Round\\n' +\n  '- [ ] Offer\\n\\n' +\n  '## Status Updates\\n' +\n  '| Date | Status | Notes |\\n' +\n  '|------|--------|-------|\\n' +\n  '| ' + appliedDate + ' | Applied | Initial application submitted |\\n\\n' +\n  '## Contacts\\n' +\n  '- Recruiter: \\n' +\n  '- Hiring Manager: \\n' +\n  '- Referral: \\n\\n' +\n  '## Notes\\n' +\n  '_Add notes after each interaction_\\n';\n\nconst analyticsContent =\n  '# Analytics Update - ' + appliedDate + '\\n\\n' +\n  '## New Application\\n' +\n  '- Company: ' + jobData.company_name + '\\n' +\n  '- Role: ' + jobData.job_title + '\\n' +\n  '- Location: ' + jobData.location + '\\n' +\n  '- Date: ' + appliedDate + '\\n' +\n  '- Fit Score: ' + fitScore + '%\\n' +\n  '- Status: Applied\\n';\n\n// WHY return only T5's unique keys: same reason as Tier 2, 3, 4.\nreturn [{\n  json: {\n    tier5_status: 'complete',\n    tracking_content: trackingContent,\n    analytics_content: analyticsContent,\n    followup_day3: fu1,\n    followup_day7: fu2,\n    followup_day30: fu3,\n    followup_day90: fu4\n  }\n}];"
+      },
+      "id": "16bd9006-c184-4a20-a6b2-dbbb3117fbe4",
       "name": "Tier 5 - Database & Tracking",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1100,
-        900
-      ],
-      "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "const jobData = $input.first().json;\n\nconst now = new Date();\nconst fu1Date = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];\nconst fu2Date = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];\nconst fu3Date = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];\nconst fu4Date = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];\n\nconst trackingContent =\n  '# Application Tracking: ' + jobData.company_name + ' - ' + jobData.job_title + '\\n\\n' +\n  '## Status\\n' +\n  '- **Current Status:** Active\\n' +\n  '- **Applied:** ' + jobData.applied_date + '\\n' +\n  '- **Application ID:** ' + jobData.application_id + '\\n' +\n  '- **Location:** ' + jobData.location + '\\n' +\n  '- **Job URL:** ' + jobData.job_url + '\\n\\n' +\n  '## Follow-Up Schedule\\n' +\n  '- [ ] Day 3 check-in: ' + fu1Date + '\\n' +\n  '- [ ] Day 7 follow-up: ' + fu2Date + '\\n' +\n  '- [ ] Day 30 check-in: ' + fu3Date + '\\n' +\n  '- [ ] 90-day check-in: ' + fu4Date + '\\n\\n' +\n  '## Interview Stages\\n' +\n  '- [ ] Phone Screen\\n' +\n  '- [ ] Technical Interview\\n' +\n  '- [ ] Final Round\\n\\n' +\n  '## Notes\\n' +\n  '_Add notes after each interaction_\\n\\n' +\n  '## Contacts\\n' +\n  '- Recruiter: \\n' +\n  '- Hiring Manager: \\n' +\n  '- Referral: \\n';\n\nconst analyticsContent =\n  '# Analytics Update - ' + jobData.applied_date + '\\n\\n' +\n  '## New Application\\n' +\n  '- Company: ' + jobData.company_name + '\\n' +\n  '- Role: ' + jobData.job_title + '\\n' +\n  '- Location: ' + jobData.location + '\\n' +\n  '- Date: ' + jobData.applied_date + '\\n' +\n  '- Method: Direct Application\\n' +\n  '- Status: Active\\n';\n\nreturn [{\n  json: {\n    ...jobData,\n    tier5_status: 'complete',\n    tracking_content: trackingContent,\n    analytics_content: analyticsContent,\n    followup_day3: fu1Date,\n    followup_day7: fu2Date,\n    followup_day30: fu3Date,\n    followup_day90: fu4Date\n  }\n}];\n"
-      }
+        0,
+        2112
+      ]
     },
     {
-      "id": "f2a3b4c5-d6e7-4f8a-9b0c-d1e2f3a4b5c6",
+      "parameters": {
+        "jsCode": "// WHY fully sequential chain: T1 -> T2 -> T3 -> T4 -> T5 -> here.\n// By the time Tier 5 fires this node, all 5 tiers are guaranteed complete.\n// We read each tier's compiled output node by name -- no $input.all() needed,\n// no race conditions, no try/catch needed.\n\nconst t1 = $('ATS Keyword Optimization').first().json || {};\nconst t2 = $('Tier 2 - Cold Outreach').first().json || {};\nconst t3 = $('Tier 3 - Interview Prep').first().json || {};\nconst t4 = $('Tier 4 - Portfolio Matching').first().json || {};\nconst t5 = $('Tier 5 - Database & Tracking').first().json || {};\nconst t6 = $('Tier 6 - Tailored Resume').first().json || {};\n\n// WHY T1 first in Object.assign: T1 carries the base job metadata.\n// Each tier adds unique keys (cold_email_content, interview_prep_content,\n// portfolio_content, tracking_content) so there are no meaningful collisions.\nconst merged = Object.assign({}, t1, t2, t3, t4, t5, t6);\nreturn [{ json: merged }];"
+      },
+      "id": "8df0edc7-652d-4e97-93f3-a842715b44c5",
       "name": "Merge Results",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 2,
-      "position": [
-        1700,
-        500
-      ],
-      "parameters": {
-        "mode": "append",
-        "mergeByFields": {
-          "values": []
-        },
-        "options": {}
-      }
-    },
-    {
-      "id": "c9d0e1f2-a3b4-4c5d-6e7f-a8b9c0d1e2f3",
-      "name": "Git Commit - job-search-data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2000,
-        500
-      ],
+        1504,
+        1104
+      ]
+    },
+    {
       "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "// CHANGE #1: Fixed token access - process.env instead of $env\n // WHY $env: n8n exposes specific env vars via $env when NODE_FUNCTION_ALLOW_ENV is set\nconst githubToken = $env.GITHUB_TOKEN || '';\n\n// Collect all tier data from all parallel branches (Merge Results node)\nconst allItems = $input.all();\nlet jobData = {};\nfor (const item of allItems) {\n  jobData = Object.assign({}, jobData, item.json);\n}\n\nif (!githubToken) {\n  console.log('Warning: GITHUB_TOKEN not set, skipping git commit');\n  return [{ json: Object.assign({}, jobData, { git_status: 'skipped' }) }];\n}\n\nconst owner = 'odeliyach';\nconst repo = 'job-search-data';\nconst apiBase = 'https://api.github.com';\nconst headers = {\n  'Authorization': 'token ' + githubToken,\n  'Accept': 'application/vnd.github.v3+json',\n  'Content-Type': 'application/json'\n};\n\nasync function apiRequest(method, path, body) {\n  return await $helpers.httpRequest({\n    method: method,\n    url: apiBase + path,\n    headers: headers,\n    body: body,\n  });\n}\n\n// Auto-create folder structure based on application status\nconst statusFolder = 'Active';\nconst vaultBase = 'Obsidian_Vault/' + statusFolder + '/' + jobData.year + '/' + jobData.month + '/' + jobData.folder_name;\nconst legacyBase = jobData.year + '/' + jobData.month + '/' + jobData.folder_name;\n\ntry {\n  const refData = await apiRequest('GET', '/repos/' + owner + '/' + repo + '/git/refs/heads/main');\n  const currentSha = refData.object.sha;\n  const commitData = await apiRequest('GET', '/repos/' + owner + '/' + repo + '/git/commits/' + currentSha);\n  const treeSha = commitData.tree.sha;\n\n  const filesToCommit = [];\n\n  const contentMap = {\n    'metadata.md': jobData.metadata_content,\n    'resume.md': jobData.resume_content,\n    'cover_letter.md': jobData.cover_letter_content,\n    'cold_email.md': jobData.cold_email_content,\n    'company_research.md': jobData.company_research_content,\n    'personal_angle.md': jobData.personal_angle_content,\n    'interview_prep.md': jobData.interview_prep_content,\n    'portfolio_matching.md': jobData.portfolio_content,\n    'tracking.md': jobData.tracking_content,\n    'ats_optimization.md': jobData.ats_content\n  };\n\n  // Create each blob once, then add to both Obsidian_Vault and legacy paths\n  for (const [fileName, content] of Object.entries(contentMap)) {\n    if (!content) continue;\n    try {\n      const blobData = await apiRequest('POST', '/repos/' + owner + '/' + repo + '/git/blobs', {\n        content: Buffer.from(content).toString('base64'),\n        encoding: 'base64'\n      });\n      const blobSha = blobData.sha;\n      // Obsidian_Vault path (for Obsidian Git plugin sync)\n      filesToCommit.push({ path: vaultBase + '/' + fileName, mode: '100644', type: 'blob', sha: blobSha });\n      // Legacy path (backwards compatibility)\n      filesToCommit.push({ path: legacyBase + '/' + fileName, mode: '100644', type: 'blob', sha: blobSha });\n    } catch (e) {\n      console.error('Error processing file ' + fileName + ': ' + e.message);\n    }\n  }\n\n  if (jobData.analytics_content) {\n    try {\n      const blobData = await apiRequest('POST', '/repos/' + owner + '/' + repo + '/git/blobs', {\n        content: Buffer.from(jobData.analytics_content).toString('base64'),\n        encoding: 'base64'\n      });\n      filesToCommit.push({ path: 'analytics.md', mode: '100644', type: 'blob', sha: blobData.sha });\n    } catch (e) {\n      console.error('Error processing analytics.md: ' + e.message);\n    }\n  }\n\n  if (filesToCommit.length === 0) {\n    return [{ json: Object.assign({}, jobData, { git_status: 'skipped', git_note: 'No content to commit' }) }];\n  }\n\n  const newTreeData = await apiRequest('POST', '/repos/' + owner + '/' + repo + '/git/trees', {\n    base_tree: treeSha,\n    tree: filesToCommit\n  });\n\n  const commitMessage = 'Job application: ' + jobData.company_name + ' - ' + jobData.job_title + ' - ' + jobData.applied_date;\n  const newCommitData = await apiRequest('POST', '/repos/' + owner + '/' + repo + '/git/commits', {\n    message: commitMessage,\n    tree: newTreeData.sha,\n    parents: [currentSha],\n    author: {\n      name: 'Odeliya Charitonova',\n      email: 'odaliya12@gmail.com',\n      date: new Date().toISOString()\n    }\n  });\n\n  await apiRequest('PATCH', '/repos/' + owner + '/' + repo + '/git/refs/heads/main', {\n    sha: newCommitData.sha,\n    force: false\n  });\n\n  return [{ json: Object.assign({}, jobData, { git_status: 'success', commit_sha: newCommitData.sha, vault_path: vaultBase }) }];\n\n} catch (e) {\n  console.error('Git commit failed: ' + e.message);\n  return [{ json: Object.assign({}, jobData, { git_status: 'error', git_error: e.message }) }];\n}\n"
+        "url": "=https://api.github.com/repos/odeliyach/job-search-data/git/refs/heads/main",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-job-search"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1db9732-5f21-489a-84ff-c20fe2c5eac4",
+      "name": "Git Get Ref",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1808,
+        1104
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nriQcBdVr3dXV5me",
+          "name": "Header Auth account"
+        }
       }
     },
     {
-      "id": "a3b4c5d6-e7f8-4a9b-0c1d-e2f3a4b5c6d7",
-      "name": "Notify for Approval",
-      "type": "n8n-nodes-base.emailSend",
+      "parameters": {
+        "jsCode": "// WHY: Merge Results feeds all tier data here as multiple items\n// We merge them all into one jobData object\nconst allItems = $input.all();\nlet jobData = {};\nfor (const item of allItems) {\n  jobData = Object.assign({}, jobData, item.json);\n}\n\nconst safe = (val) => val || '';\nconst company = safe(jobData.company_name).replace(/[^a-zA-Z0-9]/g, '_') || 'Unknown';\nconst safeCompany = company + '_' + (jobData.applied_date||'').replace(/-/g,'');\n\nconst frontmatter = `---\ncompany: \"${safe(jobData.company_name)}\"\nrole: \"${safe(jobData.job_title)}\"\napplied_date: \"${safe(jobData.applied_date)}\"\nstatus: \"applied\"\njob_link: \"${safe(jobData.job_url)}\"\nlocation: \"${safe(jobData.location)}\"\nfit_score: ${jobData.fit_score || 0}\nats_score: ${jobData.ats_score || 0}\napplication_id: \"${safe(jobData.application_id)}\"\ntags: [job-search, ${new Date().getFullYear()}]\n---`;\n\nconst content = frontmatter + `\n\n# ${safe(jobData.company_name)} - ${safe(jobData.job_title)}\n\n## Application Status\n| Field | Value |\n|-------|-------|\n| Company | ${safe(jobData.company_name)} |\n| Role | ${safe(jobData.job_title)} |\n| Status | 🟢 Active |\n| Applied | ${safe(jobData.applied_date)} |\n| Location | ${safe(jobData.location)} |\n| Fit Score | **${jobData.fit_score || 0}%** |\n| ATS Score | ${jobData.ats_score || 0}% |\n| Job Link | ${safe(jobData.job_url)} |\n\n## Follow-Up Schedule\n| Follow-up | Due Date | Status |\n|-----------|----------|--------|\n| Day 3 | ${safe(jobData.followup_day3)} | ⏳ Pending |\n| Day 7 | ${safe(jobData.followup_day7)} | ⏳ Pending |\n| Day 30 | ${safe(jobData.followup_day30)} | ⏳ Pending |\n| Day 90 | ${safe(jobData.followup_day90)} | ⏳ Pending |\n\n## Communication Log\n| Date | Event | Status |\n|------|-------|--------|\n| ${safe(jobData.applied_date)} | Application submitted | ✅ Sent |\n\n---\n\n## 📄 Resume Analysis\n${safe(jobData.resume_content)}\n\n---\n\n## 📄 Cover Letter\n${safe(jobData.cover_letter_content)}\n\n---\n\n## 📧 Cold Outreach\n${safe(jobData.cold_email_content)}\n\n---\n\n## 🏢 Company Research\n${safe(jobData.company_research_content)}\n\n---\n\n## 🔗 LinkedIn Messages\n${safe(jobData.personal_angle_content)}\n\n---\n\n## 🎤 Interview Prep\n${safe(jobData.interview_prep_content)}\n\n---\n\n## 💼 Portfolio Matching\n${safe(jobData.portfolio_content)}\n\n---\n\n## 📊 ATS Analysis\n${safe(jobData.ats_content)}\n\n---\n\n## 📝 Personal Notes\n_Add your notes here after each interaction_\n`;\n\nconst contentBase64 = Buffer.from(content).toString('base64');\nconst filePath = 'Job_Applications/Active/' + safeCompany + '.md';\n\nreturn [{\n  json: {\n    ...jobData,\n    file_path: filePath,\n    file_content_base64: contentBase64,\n    commit_message: 'New application: ' + safe(jobData.company_name) + ' - ' + safe(jobData.job_title) + ' | Fit: ' + (jobData.fit_score||0) + '%',\n    vault_path: filePath\n  }\n}];"
+      },
+      "id": "d44c7633-13a5-468f-9f2a-6be546eaf93d",
+      "name": "Prepare Git Content",
+      "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2300,
-        500
-      ],
+        2112,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "github_token",
+              "stringValue": "PASTE_YOUR_NEW_GITHUB_TOKEN_HERE"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "22d248a0-0ef9-4dcc-b37a-806623ac82e0",
+      "name": "Set GitHub Token",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        1808,
+        912
+      ]
+    },
+    {
       "parameters": {
         "fromEmail": "odeliya.charitonova.dev@gmail.com",
         "toEmail": "odeliya.charitonova.dev@gmail.com",
-        "subject": "=ACTION REQUIRED: Review Job Application - {{ $json.company_name }} - {{ $json.job_title }}",
+        "subject": "=✅ Job Application Complete: {{ $json.company_name }} - {{ $json.job_title }} | Fit: {{ $json.fit_score }}%",
         "emailFormat": "html",
-        "html": "=<html>\n<body style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;\">\n  <h2 style=\"color: #007bff;\">&#128338; Job Application Ready for Review</h2>\n  <p>Your job application has been prepared and saved. Please review before sending.</p>\n  <hr/>\n  <table style=\"width: 100%; border-collapse: collapse; margin-bottom: 20px;\">\n    <tr><td style=\"padding: 8px; font-weight: bold; width: 140px;\">Company:</td><td style=\"padding: 8px;\">{{ $json.company_name }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">Position:</td><td style=\"padding: 8px;\">{{ $json.job_title }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">Location:</td><td style=\"padding: 8px;\">{{ $json.location }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">Applied:</td><td style=\"padding: 8px;\">{{ $json.applied_date }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">ATS Score:</td><td style=\"padding: 8px;\">{{ $json.ats_score }}%</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">Git Status:</td><td style=\"padding: 8px;\">{{ $json.git_status }}</td></tr>\n  </table>\n  <p style=\"background: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107;\">\n    <strong>&#9888; Action Required:</strong> Review the generated materials in your Obsidian vault, then click the Approve button below to confirm sending.\n  </p>\n  <p style=\"margin-top: 20px;\">\n    <a href=\"{{ $execution.resumeUrl }}\" style=\"background: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;\">\n      &#10003; APPROVE &amp; SEND\n    </a>\n  </p>\n  <p style=\"color: #6c757d; font-size: 0.9em; margin-top: 20px;\">\n    Application ID: {{ $json.application_id }} | Vault: {{ $json.vault_path }}<br/>\n    Note: Click APPROVE only after reviewing files in your Obsidian vault.\n  </p>\n</body>\n</html>",
+        "html": "=<html>\n<body style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;\">\n  <h2 style=\"color: #28a745;\">✓ Application Complete</h2>\n  <hr/>\n  <table style=\"width: 100%; border-collapse: collapse; margin-bottom: 20px;\">\n    <tr><td style=\"padding: 8px; font-weight: bold;\">Company:</td><td style=\"padding: 8px;\">{{ $json.company_name }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">Position:</td><td style=\"padding: 8px;\">{{ $json.job_title }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">Location:</td><td style=\"padding: 8px;\">{{ $json.location }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">Applied:</td><td style=\"padding: 8px;\">{{ $json.applied_date }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">Job Fit Score:</td><td style=\"padding: 8px; font-size: 1.2em; font-weight: bold; color: #007bff;\">{{ $json.fit_score }}%</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">ATS Score:</td><td style=\"padding: 8px;\">{{ $json.ats_score }}%</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">Git Status:</td><td style=\"padding: 8px;\">{{ $json.git_status }}</td></tr>\n  </table>\n  <p style=\"background: #d4edda; padding: 15px; border-radius: 5px;\">\n    Files saved to: {{ $json.vault_path }}\n  </p>\n  <h3>Follow-Up Schedule</h3>\n  <ul>\n    <li>Day 3: {{ $json.followup_day3 }}</li>\n    <li>Day 7: {{ $json.followup_day7 }}</li>\n    <li>Day 30: {{ $json.followup_day30 }}</li>\n    <li>Day 90: {{ $json.followup_day90 }}</li>\n  </ul>\n</body>\n</html>",
         "options": {}
-      }
-    },
-    {
-      "id": "b4c5d6e7-f8a9-4b0c-1d2e-f3a4b5c6d7e8",
-      "name": "Wait for Approval",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1,
-      "position": [
-        2600,
-        500
-      ],
-      "parameters": {
-        "resume": "webhook"
       },
-      "webhookId": "job-approval-webhook"
-    },
-    {
-      "id": "d0e1f2a3-b4c5-4d6e-7f8a-b9c0d1e2f3a4",
+      "id": "59abe0d2-e6b4-4f96-bf29-0ac5ec5ad529",
       "name": "Send Email Notification",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2,
       "position": [
-        2900,
-        500
+        2400,
+        1104
       ],
-      "parameters": {
-        "fromEmail": "odeliya.charitonova.dev@gmail.com",
-        "toEmail": "odeliya.charitonova.dev@gmail.com",
-        "subject": "=Job Application Complete: {{ $json.company_name }} - {{ $json.job_title }}",
-        "emailFormat": "html",
-        "html": "=<html>\n<body style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;\">\n  <h2 style=\"color: #28a745;\">&#10003; Application Status: Complete</h2>\n  <hr/>\n  <table style=\"width: 100%; border-collapse: collapse; margin-bottom: 20px;\">\n    <tr><td style=\"padding: 8px; font-weight: bold; width: 140px;\">Company:</td><td style=\"padding: 8px;\">{{ $json.company_name }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">Position:</td><td style=\"padding: 8px;\">{{ $json.job_title }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">Location:</td><td style=\"padding: 8px;\">{{ $json.location }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">Applied:</td><td style=\"padding: 8px;\">{{ $json.applied_date }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">ATS Score:</td><td style=\"padding: 8px;\">{{ $json.ats_score }}%</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">Git Status:</td><td style=\"padding: 8px;\">{{ $json.git_status }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold;\">Commit SHA:</td><td style=\"padding: 8px;\">{{ $json.commit_sha }}</td></tr>\n  </table>\n  <h3>Tier Completion Status</h3>\n  <ul>\n    <li>Tier 1 (Core Application): {{ $json.tier1_status }}</li>\n    <li>Tier 2 (Cold Outreach): {{ $json.tier2_status }}</li>\n    <li>Tier 3 (Interview Prep): {{ $json.tier3_status }}</li>\n    <li>Tier 4 (Portfolio Matching): {{ $json.tier4_status }}</li>\n    <li>Tier 5 (Tracking): {{ $json.tier5_status }}</li>\n  </ul>\n  <h3>Follow-Up Schedule</h3>\n  <ul>\n    <li>Day 3: {{ $json.followup_day3 }}</li>\n    <li>Day 7: {{ $json.followup_day7 }}</li>\n    <li>Day 30: {{ $json.followup_day30 }}</li>\n    <li>Day 90: {{ $json.followup_day90 }}</li>\n  </ul>\n  <p style=\"background: #d4edda; padding: 15px; border-radius: 5px; border-left: 4px solid #28a745;\">\n    Files saved to Obsidian Vault: {{ $json.vault_path }}<br/>\n    Auto-sync to C:\\Users\\odali\\Obsidian\\Job_Search_Test via Obsidian Git plugin (every 10 min)\n  </p>\n</body>\n</html>",
-        "options": {}
+      "webhookId": "c70396cc-0dee-417a-ad37-1d18ced852c4",
+      "credentials": {
+        "smtp": {
+          "id": "iQMNzIMVnxiFJYWF",
+          "name": "SMTP account"
+        }
       }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.github.com/repos/odeliyach/job-search-data/contents/{{ $json.file_path }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-job-search"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $('Prepare Git Content').first().json.commit_message }}"
+            },
+            {
+              "name": "content",
+              "value": "={{ $('Prepare Git Content').first().json.file_content_base64 }}"
+            },
+            {
+              "name": "author.name",
+              "value": "Odeliya Charitonova"
+            },
+            {
+              "name": "author.email",
+              "value": "odaliya12@gmail.com"
+            },
+            {
+              "name": "sha",
+              "value": "={{ $('Prepare Commit Body').first().json.existing_sha || undefined }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ee8415cc-994d-4f0a-9e64-d57ce87604d1",
+      "name": "GitHub Commit File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2704,
+        912
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nriQcBdVr3dXV5me",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const prepData = $('Prepare Git Content').first().json;\nconst resp = $input.first().json;\nconst success = resp.content && resp.content.sha;\nreturn [{\n  json: {\n    ...prepData,\n    git_status: success ? 'success' : 'error',\n    commit_sha: resp.commit ? resp.commit.sha : '',\n    git_error: success ? '' : JSON.stringify(resp).substring(0, 200)\n  }\n}];"
+      },
+      "id": "cfa5f8cf-d72a-48ae-bb9d-89eb6b46e277",
+      "name": "Git Commit Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2912,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/odeliyach/job-search-data/contents/{{ $json.file_path }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-job-search"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "05d9022b-ad8f-4219-a15c-3cc7efc5038b",
+      "name": "Get File SHA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2512,
+        912
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nriQcBdVr3dXV5me",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const fileResp = $input.first().json;\nconst prepData = $('Prepare Git Content').first().json;\nconst existingSha = fileResp.sha || null;\nreturn [{ json: { ...prepData, existing_sha: existingSha } }];"
+      },
+      "id": "450dbace-aabf-4c36-8e57-5160f3f47a39",
+      "name": "Prepare Commit Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2704,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "job_description_raw",
+              "stringValue": "=={{ $json.body.job_description_raw || $json['Job Description'] || '' }}"
+            },
+            {
+              "name": "job_url",
+              "stringValue": "=={{ $json.body.job_url || $json['Job URL (optional)'] || '' }}"
+            },
+            {
+              "name": "skills_override",
+              "stringValue": "=={{ $json.body.skills_override || $json['Skills Override (optional)'] || '' }}"
+            }
+          ]
+        },
+        "include": "none",
+        "options": {}
+      },
+      "id": "8a005c1f-08f5-4a5f-a6a1-f491ec7e42a8",
+      "name": "Job Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        -1200,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "a6351c02-499a-404e-a4a6-2d6d7954a09a",
+      "name": "Wait After T1",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        608,
+        112
+      ],
+      "webhookId": "wait-t1-001"
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "8b45ccb2-d2c6-4614-8df2-232b40ade86e",
+      "name": "Wait After T2",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        608,
+        304
+      ],
+      "webhookId": "wait-t2-001"
+    },
+    {
+      "parameters": {
+        "amount": 45,
+        "unit": "seconds"
+      },
+      "id": "1eef0e25-35f3-464e-8ffa-123b7462a565",
+      "name": "Wait After T3",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        608,
+        512
+      ],
+      "webhookId": "wait-t3-001"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/odeliyach/job-search-data/contents/Job_Applications/Active",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-job-search"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f3025151-6bbd-47eb-bfc8-b0865d269988",
+      "name": "Dashboard - Fetch Active Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2512,
+        1104
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nriQcBdVr3dXV5me",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// WHY read Git Commit Result by node name:\n// We need the new application's data (company, role, fit score etc.)\n// to add to the Recent Activity section of the dashboard.\nconst newApp = $('Git Commit Result').first().json;\nconst today = new Date().toISOString().split('T')[0];\n\n// Parse the Active folder listing\n// GitHub returns one item per file when listing a directory\nconst items = $input.all();\nconst activeFiles = Array.isArray(items[0]?.json)\n  ? items[0].json\n  : items.map(i => i.json).filter(f => f && f.type === 'file' && f.name && f.name.endsWith('.md'));\n\nconst activeCount = activeFiles.length;\n\n// Build upcoming follow-ups for the new application\nconst safe = v => v || '';\nconst company = safe(newApp.company_name);\nconst role = safe(newApp.job_title);\nconst fitScore = newApp.fit_score || 0;\nconst appliedDate = safe(newApp.applied_date);\nconst filePath = safe(newApp.vault_path);\n\n// Build quick links from active files\nconst quickLinks = activeFiles\n  .map(f => '- [[' + f.name.replace('.md', '') + ']]')\n  .join('\\n');\n\n// Build upcoming follow-ups from the new application\nconst followups = [\n  { label: 'Day 3', date: safe(newApp.followup_day3), company },\n  { label: 'Day 7', date: safe(newApp.followup_day7), company },\n  { label: 'Day 30', date: safe(newApp.followup_day30), company },\n  { label: 'Day 90', date: safe(newApp.followup_day90), company },\n].filter(f => f.date);\n\nconst followupRows = followups\n  .map(f => '| ' + f.date + ' | ' + f.company + ' | ' + f.label + ' | ⏳ Pending |')\n  .join('\\n');\n\nconst dashContent =\n  '---\\n'\n  + 'updated: \"' + today + '\"\\n'\n  + 'tags: [dashboard, job-search]\\n'\n  + '---\\n\\n'\n  + '# 📊 Job Search Dashboard\\n'\n  + '> Last updated: ' + today + '\\n\\n'\n  + '## 📈 Overview\\n'\n  + '| Status | Count |\\n'\n  + '|--------|-------|\\n'\n  + '| 🟢 Active | ' + activeCount + ' |\\n'\n  + '| 🟡 Waiting | — |\\n'\n  + '| 🔵 Offers | — |\\n'\n  + '| ❌ Rejected | — |\\n'\n  + '| **Total** | **' + activeCount + '** |\\n\\n'\n  + '## ⚡ Recent Activity\\n'\n  + '| Date | Company | Role | Fit Score |\\n'\n  + '|------|---------|------|-----------|\\n'\n  + '| ' + appliedDate + ' | ' + company + ' | ' + role + ' | ' + fitScore + '% |\\n\\n'\n  + '## 📅 Upcoming Follow-Ups\\n'\n  + '| Due Date | Company | Type | Status |\\n'\n  + '|----------|---------|------|--------|\\n'\n  + followupRows + '\\n\\n'\n  + '## 🔗 Active Applications\\n'\n  + quickLinks + '\\n';\n\nconst contentBase64 = Buffer.from(dashContent).toString('base64');\n\nreturn [{ json: {\n  ...newApp,\n  dashboard_path: 'Dashboard/Main_Dashboard.md',\n  dashboard_content_base64: contentBase64,\n  dashboard_commit_message: 'Dashboard updated: ' + company + ' - ' + role + ' | ' + today\n} }];\n"
+      },
+      "id": "92166230-e886-4130-9846-25954e4ec577",
+      "name": "Build Dashboard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2704,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/odeliyach/job-search-data/contents/Dashboard/Main_Dashboard.md",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-job-search"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "361d8275-adf0-4d7f-ac64-fcd83be1a782",
+      "name": "Dashboard - Get SHA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2912,
+        1104
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nriQcBdVr3dXV5me",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.github.com/repos/odeliyach/job-search-data/contents/{{ $('Build Dashboard').first().json.dashboard_path }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-job-search"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $('Build Dashboard').first().json.dashboard_commit_message }}"
+            },
+            {
+              "name": "content",
+              "value": "={{ $('Build Dashboard').first().json.dashboard_content_base64 }}"
+            },
+            {
+              "name": "author.name",
+              "value": "Odeliya Charitonova"
+            },
+            {
+              "name": "author.email",
+              "value": "odaliya12@gmail.com"
+            },
+            {
+              "name": "sha",
+              "value": "={{ $input.first().json.sha || undefined }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c77696fc-64d4-436c-894f-8fd5e3dcf796",
+      "name": "Dashboard - Commit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3104,
+        1104
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nriQcBdVr3dXV5me",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Parse Job Fields').first().json;\n\n// WHY full CV (4000 chars): T6 writes the actual resume so it needs complete\n// project details, not just a truncated snippet like T1's analysis.\nconst fullCV = (d.cv_text || '').substring(0, 4000);\n\n// WHY portfolio_analysis_clean not portfolio_content:\n// portfolio_content starts with repo listing which wastes tokens.\n// portfolio_analysis_clean is just the AI analysis with resume bullets.\nconst t4Data = $('Tier 4 - Portfolio Matching').first().json || {};\nconst portfolioAnalysis = t4Data.portfolio_analysis_clean || t4Data.portfolio_content || '';\n\n// WHY include repo list separately:\n// Not all projects appear in the CV -- the GitHub repo list is the\n// authoritative source. T6 can use these to add projects the CV is missing.\nconst repoItems = $('T4 Fetch GitHub Repos').all();\nconst repoListForResume = repoItems\n  .map(i => i.json)\n  .filter(r => r && r.name && r.description)\n  .map(r => '- ' + r.name + ': ' + r.description + ' (' + (r.language || 'N/A') + ')')\n  .join('\\n');\n\n// ATS gaps from ATS node\nconst atsData = $('ATS Keyword Optimization').first().json || {};\nconst atsMissing = (atsData.ats_content || '').split('## Missing Keywords')[1]?.split('## Recommendation')[0] || '';\n\nconst prompt =\n  'You are a Senior Technical Recruiter & Hiring Manager with 15+ years at Google, Meta, and NVIDIA Israel. '\n  + 'You have reviewed thousands of CVs for Junior Software Engineering roles in the Israeli market.\\n\\n'\n  + 'Your task: Write a COMPLETE tailored resume. This is not analysis — produce the actual document, ready to send.\\n\\n'\n  + '=== JOB TARGET ===\\n'\n  + 'Company: ' + d.company_name + '\\n'\n  + 'Role: ' + d.job_title + '\\n'\n  + 'Requirements: ' + d.job_requirements + '\\n\\n'\n  + '=== ORIGINAL CV (keep this exact structure and format) ===\\n'\n  + fullCV + '\\n\\n'\n  + '=== ALL GITHUB REPOS (source of truth for projects — use even if not in CV) ===\\n'\n  + repoListForResume + '\\n\\n'\n  + '=== PORTFOLIO ANALYSIS (relevance ranking + resume bullet guidance) ===\\n'\n  + portfolioAnalysis + '\\n\\n'\n  + '=== RULES ===\\n'\n  + '1. Keep the EXACT same structure and sections as the original CV.\\n'\n  + '2. Same format per project: Name — Domain | Tech1 · Tech2 · Tech3, then bullet points.\\n'\n  + '3. Rewrite bullet points using Google XYZ formula: Accomplished [X] as measured by [Y], by doing [Z]. '\n  + 'Lead with impact metric first. Use the portfolio analysis above for framing guidance.\\n'\n  + '4. NEVER invent numbers. Keep all original metrics: 258x, 37-point, 55%, 5.5x, etc.\\n'\n  + '5. Rewrite the summary section as a SENIOR ENGINEER would write it — not as a student applying. '\n  + 'Read the full CV and pick the single most impressive quantified achievement for THIS role (' + d.job_title + ' at ' + d.company_name + ') — choose based on relevance, not just the biggest number. Lead with that. '\n  + 'Second sentence: what you build and what problem domain you work in. '\n  + 'Third sentence: why ' + d.company_name + ' specifically (one concrete technical reason, not \"innovative environment\"). '\n  + 'BANNED phrases in summary: excited to apply, confident in my ability, looking forward, '\n  + 'dynamic environment, passionate about, would love to, strong fit. '\n  + 'Tone: declarative, not pleading. Own your achievements.\\n'\n  + '6. Reorder projects: most relevant to this role first.\\n'\n  + '7. For ATS keywords below that are NOT in the candidates real skills — '\n  + 'add this warning comment next to the Skills section: '\n  + '> ⚠️ ATS GAP: [keyword] — not in actual experience, do not include without real background\\n'\n  + 'ATS gaps:\\n' + atsMissing + '\\n'\n  + '8. Do NOT add skills the candidate does not have. Flag only — never fabricate.\\n'\n  + '9. If a GitHub repo above is relevant to this role but NOT in the original CV, '\n  + 'add it as a new project entry in the same format as the other projects.\\n'\n  + '10. Output: clean Markdown in the same visual style as the original CV.\\n'\n  + '11. End with: ## ✏️ What Changed — bullet list of every rewrite and why.\\n';\n\nreturn [{ json: {\n  body: JSON.stringify({\n    model: 'llama-3.1-8b-instant',\n    messages: [{ role: 'user', content: prompt }],\n    temperature: 0.7,\n    max_tokens: 4096\n  })\n} }];\n"
+      },
+      "id": "7d782c27-d619-4012-a31d-5e0a01ec200d",
+      "name": "Tailored Resume Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        2400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "7be5b3f7-2aff-4489-9619-08c89fe7d575",
+      "name": "Tailored Resume",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        400,
+        2400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EV5TtLlrpZapy6WQ",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Parse Job Fields').first().json;\nconst resumeRaw = $('Tailored Resume').first().json?.choices?.[0]?.message?.content || '[Resume generation failed]';\n\n// WHY save to My_Materials/Resume_Versions/:\n// This is the vault section for tailored resume versions per company,\n// keeping them separate from the main application file.\nconst safeCompany = (d.company_name || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_');\nconst fileName = 'My_Materials/Resume_Versions/' + safeCompany + '_' + (d.applied_date || '').replace(/-/g, '') + '_Resume.md';\n\nconst content =\n  '---\\n'\n  + 'company: \"' + (d.company_name || '') + '\"\\n'\n  + 'role: \"' + (d.job_title || '') + '\"\\n'\n  + 'date: \"' + (d.applied_date || '') + '\"\\n'\n  + 'type: tailored-resume\\n'\n  + '---\\n\\n'\n  + resumeRaw;\n\n// WHY pre-compute base64 here:\n// Buffer.from() in n8n expression context (={{ }}) can fail.\n// Computing it in a Code node is reliable.\nconst contentBase64 = Buffer.from(content).toString('base64');\n\nreturn [{ json: {\n  tier6_status: 'complete',\n  tailored_resume_content: content,\n  tailored_resume_content_base64: contentBase64,\n  tailored_resume_path: fileName\n} }];\n"
+      },
+      "id": "318a069f-dace-4e78-b2b0-54b062125cd1",
+      "name": "Tier 6 - Tailored Resume",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        2400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.github.com/repos/odeliyach/job-search-data/contents/{{ $('Tier 6 - Tailored Resume').first().json.tailored_resume_path }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-job-search"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: 'Tailored resume: ' + $('Tier 6 - Tailored Resume').first().json.tailored_resume_path, content: $('Tier 6 - Tailored Resume').first().json.tailored_resume_content_base64, sha: $('Get Resume SHA').first().json.sha || undefined, author: { name: 'Odeliya Charitonova', email: 'odaliya12@gmail.com' } }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "b16d8fc8-d426-44f1-9cba-fded286a9a02",
+      "name": "Commit Tailored Resume",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        1312
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nriQcBdVr3dXV5me",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 60,
+        "unit": "seconds"
+      },
+      "id": "d16e833f-e359-4d40-bafd-24fcd24853b6",
+      "name": "Wait After T5",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        0,
+        2400
+      ],
+      "webhookId": "1feb3f43-4413-4667-bb0d-e3ab57f726ba"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://api.github.com/repos/odeliyach/job-search-data/contents/' + $('Tier 6 - Tailored Resume').first().json.tailored_resume_path }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-job-search"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "1e15d2ac-77ae-4f26-89dc-9eac0f8c8064",
+      "name": "Get Resume SHA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        800,
+        2400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nriQcBdVr3dXV5me",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "job-search-demo",
+        "options": {}
+      },
+      "id": "63efe6ce-8687-4115-9c30-2b6b326e9db4",
+      "name": "Demo Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1504,
+        672
+      ],
+      "webhookId": "job-search-demo"
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "4fb052d5-fc15-4b1b-909e-664a79329584",
+      "name": "Wait In T3",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        160,
+        1408
+      ],
+      "webhookId": "wait-t3-internal-001"
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "8717e078-ba35-422f-b1c8-a2893d456df0",
+      "name": "Wait Before T4",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        80,
+        1808
+      ],
+      "webhookId": "wait-t4-internal-001"
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "50c230b9-d3d3-4e04-a9a6-0942db70ef32",
+      "name": "Wait In T1 A",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        352,
+        208
+      ],
+      "webhookId": "wait-t1-a-001"
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "57911ed8-f99b-4237-b569-062a03bf4cde",
+      "name": "Wait In T1 B",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        352,
+        112
+      ],
+      "webhookId": "wait-t1-b-001"
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "642c7e5a-d259-4c12-bb57-6b0aa2d1da73",
+      "name": "Wait In T2 A",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        144,
+        512
+      ],
+      "webhookId": "wait-t2-a-001"
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "7b431ac9-2b4a-4162-bcb8-a5ef21abddb0",
+      "name": "Wait In T2 B",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        144,
+        656
+      ],
+      "webhookId": "wait-t2-b-001"
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "11a9c34f-6d99-4802-832f-1eccce9dfe67",
+      "name": "Wait In T2 C",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        144,
+        800
+      ],
+      "webhookId": "wait-t2-c-001"
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "89b7c453-68b5-4a98-873a-22f33d0d40c6",
+      "name": "Wait In T3 A",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        144,
+        1104
+      ],
+      "webhookId": "wait-t3-a-001"
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "b73e9b3f-c96b-4482-83d1-e5a912558396",
+      "name": "Wait In T3 B",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        144,
+        1264
+      ],
+      "webhookId": "wait-t3-b-001"
     }
   ],
+  "pinData": {},
   "connections": {
-    "Start Job Application": {
+    "Fetch CV from GitHub": {
       "main": [
         [
           {
-            "node": "Set Job Details",
+            "node": "Extract Job Fields Prepare",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Set Job Details": {
+    "Extract Job Fields Prepare": {
       "main": [
         [
           {
-            "node": "Parse Job Info",
+            "node": "Extract Job Fields",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Parse Job Info": {
+    "Extract Job Fields": {
+      "main": [
+        [
+          {
+            "node": "Parse Job Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Job Fields": {
+      "main": [
+        [
+          {
+            "node": "T1 Resume Analysis Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T1 Resume Analysis Prepare": {
+      "main": [
+        [
+          {
+            "node": "T1 Resume Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T2 Intro Email Prepare": {
+      "main": [
+        [
+          {
+            "node": "T2 Intro Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T2 Follow Up Prepare": {
+      "main": [
+        [
+          {
+            "node": "T2 Follow Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T2 Company Research Prepare": {
+      "main": [
+        [
+          {
+            "node": "T2 Company Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T2 LinkedIn Message Prepare": {
+      "main": [
+        [
+          {
+            "node": "T2 LinkedIn Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T3 Skills Gap Prepare": {
+      "main": [
+        [
+          {
+            "node": "T3 Skills Gap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T3 Interview Questions Prepare": {
+      "main": [
+        [
+          {
+            "node": "T3 Interview Questions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T3 Talking Points Prepare": {
+      "main": [
+        [
+          {
+            "node": "T3 Talking Points",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T3 Salary Guide Prepare": {
+      "main": [
+        [
+          {
+            "node": "T3 Salary Guide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T1 Resume Analysis": {
+      "main": [
+        [
+          {
+            "node": "Wait In T1 A",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T1 Cover Letter Prepare": {
+      "main": [
+        [
+          {
+            "node": "T1 Cover Letter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T1 Cover Letter": {
+      "main": [
+        [
+          {
+            "node": "Wait In T1 B",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T1 Job Fit Score Prepare": {
+      "main": [
+        [
+          {
+            "node": "T1 Job Fit Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T1 Job Fit Score": {
       "main": [
         [
           {
             "node": "Tier 1 - Core Application",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Tier 2 - Cold Outreach",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Tier 3 - Interview Prep",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Tier 4 - Portfolio Matching",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Tier 5 - Database & Tracking",
             "type": "main",
             "index": 0
           }
@@ -323,18 +1808,51 @@
       "main": [
         [
           {
-            "node": "ATS Keyword Optimization",
+            "node": "Wait After T1",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "ATS Keyword Optimization": {
+    "T2 Intro Email": {
       "main": [
         [
           {
-            "node": "Merge Results",
+            "node": "Wait In T2 A",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T2 Follow Up": {
+      "main": [
+        [
+          {
+            "node": "Wait In T2 B",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T2 Company Research": {
+      "main": [
+        [
+          {
+            "node": "Wait In T2 C",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T2 LinkedIn Message": {
+      "main": [
+        [
+          {
+            "node": "Tier 2 - Cold Outreach",
             "type": "main",
             "index": 0
           }
@@ -345,42 +1863,86 @@
       "main": [
         [
           {
-            "node": "Merge Results",
+            "node": "Wait After T2",
             "type": "main",
-            "index": 1
+            "index": 0
           }
         ]
       ]
     },
-    "Tier 3 - Interview Prep": {
+    "T3 Skills Gap": {
       "main": [
         [
           {
-            "node": "Merge Results",
+            "node": "Wait In T3 A",
             "type": "main",
-            "index": 2
+            "index": 0
           }
         ]
       ]
     },
-    "Tier 4 - Portfolio Matching": {
+    "T3 Interview Questions": {
       "main": [
         [
           {
-            "node": "Merge Results",
+            "node": "Wait In T3 B",
             "type": "main",
-            "index": 3
+            "index": 0
           }
         ]
       ]
     },
-    "Tier 5 - Database & Tracking": {
+    "T3 Talking Points": {
       "main": [
         [
           {
-            "node": "Merge Results",
+            "node": "Wait In T3",
             "type": "main",
-            "index": 4
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T3 Salary Guide": {
+      "main": [
+        [
+          {
+            "node": "Tier 3 - Interview Prep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T4 Fetch GitHub Repos": {
+      "main": [
+        [
+          {
+            "node": "Wait Before T4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T4 Portfolio Analysis Prepare": {
+      "main": [
+        [
+          {
+            "node": "T4 Portfolio Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "T4 Portfolio Analysis": {
+      "main": [
+        [
+          {
+            "node": "Tier 4 - Portfolio Matching",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -389,36 +1951,217 @@
       "main": [
         [
           {
-            "node": "Git Commit - job-search-data",
+            "node": "Prepare Git Content",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Git Commit - job-search-data": {
+    "Git Get Ref": {
       "main": [
         [
           {
-            "node": "Notify for Approval",
+            "node": "Set GitHub Token",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Notify for Approval": {
+    "Set GitHub Token": {
       "main": [
         [
           {
-            "node": "Wait for Approval",
+            "node": "Prepare Git Content",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Wait for Approval": {
+    "Tier 3 - Interview Prep": {
+      "main": [
+        [
+          {
+            "node": "Wait After T3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tier 4 - Portfolio Matching": {
+      "main": [
+        [
+          {
+            "node": "Tier 5 - Database & Tracking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tier 5 - Database & Tracking": {
+      "main": [
+        [
+          {
+            "node": "Wait After T5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Git Content": {
+      "main": [
+        [
+          {
+            "node": "Get File SHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub Commit File": {
+      "main": [
+        [
+          {
+            "node": "Git Commit Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Git Commit Result": {
+      "main": [
+        [
+          {
+            "node": "Dashboard - Fetch Active Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get File SHA": {
+      "main": [
+        [
+          {
+            "node": "Prepare Commit Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Commit Body": {
+      "main": [
+        [
+          {
+            "node": "GitHub Commit File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job Form": {
+      "main": [
+        [
+          {
+            "node": "Job Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job Input": {
+      "main": [
+        [
+          {
+            "node": "Fetch CV from GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait After T1": {
+      "main": [
+        [
+          {
+            "node": "ATS Keyword Optimization",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "T2 Intro Email Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait After T2": {
+      "main": [
+        [
+          {
+            "node": "T3 Skills Gap Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait After T3": {
+      "main": [
+        [
+          {
+            "node": "T4 Fetch GitHub Repos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dashboard - Fetch Active Files": {
+      "main": [
+        [
+          {
+            "node": "Build Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Dashboard - Get SHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dashboard - Get SHA": {
+      "main": [
+        [
+          {
+            "node": "Dashboard - Commit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dashboard - Commit": {
       "main": [
         [
           {
@@ -428,6 +2171,193 @@
           }
         ]
       ]
+    },
+    "Tailored Resume Prepare": {
+      "main": [
+        [
+          {
+            "node": "Tailored Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tailored Resume": {
+      "main": [
+        [
+          {
+            "node": "Tier 6 - Tailored Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tier 6 - Tailored Resume": {
+      "main": [
+        [
+          {
+            "node": "Get Resume SHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Commit Tailored Resume": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait After T5": {
+      "main": [
+        [
+          {
+            "node": "Tailored Resume Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Resume SHA": {
+      "main": [
+        [
+          {
+            "node": "Commit Tailored Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Webhook": {
+      "main": [
+        [
+          {
+            "node": "Job Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait In T3": {
+      "main": [
+        [
+          {
+            "node": "T3 Salary Guide Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Before T4": {
+      "main": [
+        [
+          {
+            "node": "T4 Portfolio Analysis Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait In T1 A": {
+      "main": [
+        [
+          {
+            "node": "T1 Cover Letter Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait In T1 B": {
+      "main": [
+        [
+          {
+            "node": "T1 Job Fit Score Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait In T2 A": {
+      "main": [
+        [
+          {
+            "node": "T2 Follow Up Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait In T2 B": {
+      "main": [
+        [
+          {
+            "node": "T2 Company Research Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait In T2 C": {
+      "main": [
+        [
+          {
+            "node": "T2 LinkedIn Message Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait In T3 A": {
+      "main": [
+        [
+          {
+            "node": "T3 Interview Questions Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait In T3 B": {
+      "main": [
+        [
+          {
+            "node": "T3 Talking Points Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
-  }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "93e1fabf-10a9-4e03-bebb-0f755aef7d28",
+  "meta": {
+    "instanceId": "23203e1a41391fea8f8c4fa4ef17097cd293961eaa4c691acf21932d52a39dfe"
+  },
+  "id": "lpmlHfBEQrVIhrIk",
+  "tags": []
 }
