@@ -33,5 +33,5 @@
 - Accessibility: ARIA labels, focus traps, keyboard navigation, color contrast checks.
 
 ## Salary + Logistics
-- Target range aligned to posting: ₪28,000–₪32,000 monthly gross.  
+- Target range aligned to posting: ₪28,000 – ₪32,000 monthly gross.  
 - Comfortable with on-call; prefer a documented runbook and clear ownership boundaries.
